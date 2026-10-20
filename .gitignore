@@ -1,0 +1,23 @@
+# Keil build output
+/project/MDK-ARM/project/
+*.o
+*.axf
+*.hex
+*.bin
+*.elf
+*.map
+*.lst
+*.crf
+*.d
+*.lnp
+*.build_log.htm
+
+# Keil personal window state
+*.uvguix.*
+
+# Temporary and operating system files
+*.bak
+*.tmp
+*~
+Thumbs.db
+Desktop.ini
