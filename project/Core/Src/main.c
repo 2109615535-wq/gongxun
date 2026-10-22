@@ -18,14 +18,16 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "scheduler.h"
+#include "motor.h"
+#include "nrf.h"
+#include "led.h"
+#include "key.h"
+#include "OLED.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "OLED.h"
-#include "motor.h"
-#include "servo.h"
-#include "GMR.h"
 
 /* USER CODE END Includes */
 
@@ -62,20 +64,6 @@ UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
 
-/* Test */
-uint8_t usart2_rx_byte;//USART2����λ
-uint8_t usart3_rx_byte;//USART3����λ
-uint8_t usart6_rx_byte;//USART6����λ
-uint8_t uart5_rx_byte;//UART5����λ
-
-uint8_t uart[] = "USART\r\n";
-uint8_t angle = 0;
-
-uint8_t key_num = 0;
-
-uint16_t motor_speed = 0;
-uint32_t servo_tick = 0;	/*���������ʱ��ÿ500msһ��*/
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -109,103 +97,55 @@ static void MX_USART6_UART_Init(void);
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
+    /* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+    /* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+    /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+    HAL_Init();
 
-  /* USER CODE BEGIN Init */
+    /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+    /* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+    /* Configure the system clock */
+    SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+    /* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+    /* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_SPI1_Init();
-  MX_TIM1_Init();
-  MX_TIM2_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  MX_TIM5_Init();
-  MX_TIM6_Init();
-  MX_TIM9_Init();
-  MX_UART5_Init();
-  MX_USART2_UART_Init();
-  MX_USART3_UART_Init();
-  MX_USART6_UART_Init();
-  /* USER CODE BEGIN 2 */
-	
-  HAL_UART_Receive_IT(&huart2, &usart2_rx_byte, 1);
-	HAL_UART_Receive_IT(&huart3, &usart3_rx_byte, 1);
-	HAL_UART_Receive_IT(&huart6, &usart6_rx_byte, 1);
-	HAL_UART_Receive_IT(&huart5, &uart5_rx_byte, 1);
-	
-	OLED_Init();
-	motor_init();
-	servo_init();
-	GMR_init();
-	
-	/* OLED ��̬��ǩֻ��һ�Σ���ѭ����ֻˢ�±仯���������� */
-	OLED_ShowString(0, 0,  "M1:");
-	OLED_ShowString(0, 8,  "M2:");
-	OLED_ShowString(0, 16, "M3:");
-	OLED_ShowString(0, 24, "M4:");
-	OLED_Update();
-	
-  /* USER CODE END 2 */
+    /* Initialize all configured peripherals */
+    MX_GPIO_Init();
+    MX_SPI1_Init();
+    MX_TIM1_Init();
+    MX_TIM2_Init();
+    MX_TIM3_Init();
+    MX_TIM4_Init();
+    MX_TIM5_Init();
+    MX_TIM6_Init();
+    MX_TIM9_Init();
+    MX_UART5_Init();
+    MX_USART2_UART_Init();
+    MX_USART3_UART_Init();
+    MX_USART6_UART_Init();
+    /* USER CODE BEGIN 2 */
+    scheduler_init();
+    /* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	
-  while (1)
-  {
-    /* USER CODE END WHILE */
+    /* Infinite loop */
+    /* USER CODE BEGIN WHILE */
 
-    /* USER CODE BEGIN 3 */
-		
-		HAL_UART_Transmit(&huart2, uart, sizeof(uart) - 1, 100);
-		HAL_UART_Transmit(&huart3, uart, sizeof(uart) - 1, 100);
-		HAL_UART_Transmit(&huart6, uart, sizeof(uart) - 1, 100);
-		HAL_UART_Transmit(&huart5, uart, sizeof(uart) - 1, 100);
-		
-		motor_set_speed(1,25,1);
-		motor_set_speed(2,25,1);
-		motor_set_speed(3,25,1);
-		motor_set_speed(4,25,1);
-		
-		/* ÿ 500ms �ö����һ����ѭ�� 20ms һ�֣�����ÿ�ֶ����Ƕȣ���������ϣ� */
-		if (HAL_GetTick() - servo_tick >= 500)
-		{
-			servo_tick = HAL_GetTick();
-			servo_set_angle(1, angle * 45);
-			servo_set_angle(2, angle * 45);
-			angle = (angle + 1) % 5;
-		}
-		
-		/* ֻˢ���������ڵ�����ÿ���� 66���� 8����ʾ����int32_t����������ˢ�¿�ܶ� */
-		OLED_ShowSignedNum(18, 0,  GMR_get_count(1), 10);
-		OLED_UpdateArea(18, 0,  66, 8);
-		OLED_ShowSignedNum(18, 8,  GMR_get_count(2), 10);
-		OLED_UpdateArea(18, 8,  66, 8);
-		OLED_ShowSignedNum(18, 16, GMR_get_count(3), 10);
-		OLED_UpdateArea(18, 16, 66, 8);
-		OLED_ShowSignedNum(18, 24, GMR_get_count(4), 10);
-		OLED_UpdateArea(18, 24, 66, 8);
-		
-		HAL_Delay(20);
-  
-	}
-  /* USER CODE END 3 */
+    while (1)
+    {
+        /* USER CODE END WHILE */
+
+        /* USER CODE BEGIN 3 */
+        scheduler_run();
+        /* USER CODE END 3 */
+    }
 }
 
 /**
@@ -889,34 +829,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)//���ڻص�����
-{
-  if (huart->Instance == USART2)
-  {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    /* ���ﴦ�� usart2_rx_byte */
-    HAL_UART_Receive_IT(&huart2, &usart2_rx_byte, 1);
-  }
-	if (huart->Instance == USART3)
-  {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    /* ���ﴦ�� usart3_rx_byte */
-    HAL_UART_Receive_IT(&huart3, &usart3_rx_byte, 1);
-  }
-	if (huart->Instance == USART6)
-  {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    /* ���ﴦ�� usart6_rx_byte */
-    HAL_UART_Receive_IT(&huart6, &usart6_rx_byte, 1);
-  }
-	if (huart->Instance == UART5)
-  {
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    /* ���ﴦ�� uart5_rx_byte */
-    HAL_UART_Receive_IT(&huart5, &uart5_rx_byte, 1);
-  }
-}
-
 /* USER CODE END 4 */
 
 /**
@@ -930,7 +842,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
-	  
+      
   }
   /* USER CODE END Error_Handler_Debug */
 }
