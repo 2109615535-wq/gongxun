@@ -43,6 +43,7 @@ static uint8_t hdz601_rx_index = 0U;
 static uint8_t hdz601_rx_checksum = 0U;
 static uint8_t hdz601_rx_data[HDZ601_MAX_PAYLOAD_LENGTH];
 static bool hdz601_attitude_valid = false;
+static volatile bool hdz601_opened = false;
 static uint8_t hdz601_uart2_rx_byte;
 static uint8_t hdz601_uart2_rx_buffer[HDZ601_UART2_RX_BUFFER_SIZE];
 static volatile uint16_t hdz601_uart2_rx_head;
@@ -55,15 +56,15 @@ volatile uint32_t g_hdz601_frame_error_count = 0U;
 volatile uint32_t g_hdz601_uart2_rx_overflow_count = 0U;
 volatile uint32_t g_hdz601_uart2_error_count = 0U;
 
-static void hdz601_uart2_init(void)
+static bool hdz601_uart2_init(void)
 {
     hdz601_uart2_rx_head = 0U;
     hdz601_uart2_rx_tail = 0U;
-    g_hdz601_uart2_rx_overflow_count = 0U;
-    g_hdz601_uart2_error_count = 0U;
     if (HAL_UART_Receive_IT(&huart2, &hdz601_uart2_rx_byte, 1U) != HAL_OK) {
         g_hdz601_uart2_error_count++;
+        return false;
     }
+    return true;
 }
 
 static void hdz601_uart2_clear_rx_buffer(void)
@@ -112,7 +113,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     uint16_t next_head;
 
-    if (huart->Instance != USART2) {
+    if ((huart->Instance != USART2) || !hdz601_opened) {
         return;
     }
     next_head = (uint16_t) ((hdz601_uart2_rx_head + 1U) & HDZ601_UART2_RX_BUFFER_MASK);
@@ -129,7 +130,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART2) {
+    if ((huart->Instance == USART2) && hdz601_opened) {
         g_hdz601_uart2_error_count++;
         if (HAL_UART_Receive_IT(huart, &hdz601_uart2_rx_byte, 1U) != HAL_OK) {
             g_hdz601_uart2_error_count++;
@@ -165,7 +166,7 @@ static void hdz601_send_command(uint8_t command,
     uint8_t header[5];
     uint8_t checksum;
 
-    if ((data == NULL) && (length != 0U)) {
+    if (!hdz601_opened || ((data == NULL) && (length != 0U))) {
         return;
     }
 
@@ -306,10 +307,38 @@ void hdz601_init(void)
     g_hdz601_valid_frame_count = 0U;
     g_hdz601_checksum_error_count = 0U;
     g_hdz601_frame_error_count = 0U;
+    g_hdz601_uart2_rx_overflow_count = 0U;
+    g_hdz601_uart2_error_count = 0U;
     hdz601_attitude_valid = false;
     hdz601_reset_parser();
 
-    hdz601_uart2_init();
+    (void) hdz601_open();
+}
+
+bool hdz601_open(void)
+{
+    if (hdz601_opened) {
+        return true;
+    }
+    if (huart2.Instance != USART2) {
+        g_hdz601_uart2_error_count++;
+        return false;
+    }
+    if ((huart2.gState == HAL_UART_STATE_RESET) &&
+        (HAL_UART_Init(&huart2) != HAL_OK)) {
+        g_hdz601_uart2_error_count++;
+        return false;
+    }
+
+    hdz601_attitude_valid = false;
+    hdz601_reset_parser();
+    hdz601_opened = true;
+    if (!hdz601_uart2_init()) {
+        hdz601_opened = false;
+        (void) HAL_UART_DeInit(&huart2);
+        return false;
+    }
+
     hdz601_soft_reset();
     dl_delay(2000U);
     hdz601_uart2_clear_rx_buffer();
@@ -317,15 +346,35 @@ void hdz601_init(void)
     hdz601_calibrate_yaw_scale(HDZ601_CALIBRATE_YAW_DEFAULT);
     hdz601_set_report_mode(HDZ601_REPORT_ATTITUDE);
     hdz601_report_control(true);
+    return true;
+}
+
+void hdz601_close(void)
+{
+    if (!hdz601_opened) {
+        return;
+    }
+
+    hdz601_report_control(false);
+    hdz601_opened = false;
+    if (HAL_UART_DeInit(&huart2) != HAL_OK) {
+        g_hdz601_uart2_error_count++;
+    }
+    hdz601_uart2_clear_rx_buffer();
+    hdz601_reset_parser();
+    hdz601_attitude_valid = false;
 }
 
 /**
  * @brief 处理USART2缓冲区内已经接收的数据。
  */
-void hdz601_task(void)
+void hdz601_process(void)
 {
     uint8_t byte;
 
+    if (!hdz601_opened) {
+        return;
+    }
     while (hdz601_uart2_read_byte(&byte)) {
         hdz601_process_byte(byte);
     }
@@ -386,9 +435,9 @@ void hdz601_calibrate_yaw_scale(float actual_angle_deg)
  * @brief 获取最近一次有效的姿态角，单位为度。
  * @return 已经收到过有效姿态帧时返回true，否则返回false。
  */
-bool hdz601_get_attitude(hdz601_attitude_t *attitude)
+bool hdz601_get(hdz601_attitude_t *attitude)
 {
-    if ((attitude == NULL) || !hdz601_attitude_valid) {
+    if ((attitude == NULL) || !hdz601_opened || !hdz601_attitude_valid) {
         return false;
     }
 

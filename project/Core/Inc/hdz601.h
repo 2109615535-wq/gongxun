@@ -30,13 +30,15 @@ extern volatile uint32_t g_hdz601_uart2_rx_overflow_count;
 extern volatile uint32_t g_hdz601_uart2_error_count;
 
 void hdz601_init(void);//初始化
-void hdz601_task(void);//串口数据处理，可以选择处理的时间间隔，即读取间隔
+bool hdz601_open(void);//打开串口并启动陀螺仪上报
+void hdz601_close(void);//停止上报并关闭串口
+void hdz601_process(void);//从串口缓冲区读取并解析数据
 void hdz601_report_control(bool enable);//开始或者停止上报数据
 void hdz601_set_report_mode(uint8_t mode);//汇报什么数据，一般就三个角度所以不用
 void hdz601_trigger_calibration(void);//重新校准，一般不用
 void hdz601_soft_reset(void);//软件重置，一般不用
 void hdz601_calibrate_yaw_scale(float actual_angle_deg);//校准yaw，一般不用
-bool hdz601_get_attitude(hdz601_attitude_t *attitude);//获取角度,实际上是把g_hdz601_attitude的三个角度取出来
+bool hdz601_get(hdz601_attitude_t *attitude);//获取最近一次有效姿态角
 
 #ifdef __cplusplus
 }
