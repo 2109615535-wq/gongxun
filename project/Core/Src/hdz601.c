@@ -4,6 +4,7 @@
 
 #include "scheduler.h"
 #include "stm32f4xx_hal.h"
+#include "OLED.h"
 
 #define HDZ601_COMMAND_REPORT_CONTROL       (0x0AU)
 #define HDZ601_COMMAND_REPORT_MODE          (0x0BU)
@@ -364,6 +365,24 @@ void hdz601_close(void)
     hdz601_reset_parser();
     hdz601_attitude_valid = false;
 }
+
+
+void hdz601_oledshow(void)
+{
+    hdz601_attitude_t attitude_show;
+    if (!hdz601_get(&attitude_show)) {
+        return;
+    }
+    OLED_ShowFloatNum2(0, 0, attitude_show.yaw, 3, 3);
+    OLED_ShowFloatNum2(0, 16, attitude_show.pitch, 3, 3);
+    OLED_ShowFloatNum2(0, 32, attitude_show.roll, 3, 3);
+}
+
+
+
+
+
+
 
 /**
  * @brief 处理USART2缓冲区内已经接收的数据。

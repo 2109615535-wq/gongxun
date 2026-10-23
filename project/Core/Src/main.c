@@ -24,9 +24,9 @@
 #include "led.h"
 #include "key.h"
 #include "OLED.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "hdz601.h"
 
 
 /* USER CODE END Includes */
@@ -98,7 +98,7 @@ int main(void)
 {
 
     /* USER CODE BEGIN 1 */
-
+    hdz601_attitude_t attitude;
     /* USER CODE END 1 */
 
     /* MCU Configuration--------------------------------------------------------*/
@@ -133,6 +133,14 @@ int main(void)
     MX_USART6_UART_Init();
     /* USER CODE BEGIN 2 */
     scheduler_init();
+    hdz601_init();
+    scheduler_add_task(hdz601_process, 5U, 0U);
+    OLED_Init();
+    scheduler_add_task(OLED_Update, 50, 3);
+    scheduler_add_task(hdz601_oledshow, 20, 3);
+
+
+
     /* USER CODE END 2 */
 
     /* Infinite loop */
@@ -147,6 +155,29 @@ int main(void)
         /* USER CODE END 3 */
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
   * @brief System Clock Configuration

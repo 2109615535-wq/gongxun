@@ -426,6 +426,11 @@
               <FilePath>../Core/Src/scheduler.c</FilePath>
             </File>
             <File>
+              <FileName>hdz601.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/hdz601.c</FilePath>
+            </File>
+            <File>
               <FileName>stm32f4xx_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f4xx_it.c</FilePath>

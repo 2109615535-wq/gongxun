@@ -32,6 +32,7 @@ extern volatile uint32_t g_hdz601_uart2_error_count;
 void hdz601_init(void);//初始化
 bool hdz601_open(void);//打开串口并启动陀螺仪上报
 void hdz601_close(void);//停止上报并关闭串口
+void hdz601_oledshow(void);//在OLED上显示姿态数据//测试
 void hdz601_process(void);//从串口缓冲区读取并解析数据
 void hdz601_report_control(bool enable);//开始或者停止上报数据
 void hdz601_set_report_mode(uint8_t mode);//汇报什么数据，一般就三个角度所以不用

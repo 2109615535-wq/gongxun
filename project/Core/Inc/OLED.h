@@ -12,8 +12,9 @@
 
 /*参数宏定义*********************/
 
-/*字体像素宽度，固定为6*8字体，显示函数无需再传字号参数*/
+/*字体像素宽度*/
 #define OLED_6X8				6
+#define OLED_8X16				8
 
 /*IsFilled参数数值*/
 #define OLED_UNFILLED			0
@@ -29,7 +30,6 @@ void OLED_Init(void);
 
 /*更新函数*/
 void OLED_Update(void);
-void OLED_UpdateArea(int16_t X, int16_t Y, uint8_t Width, uint8_t Height);
 
 /*显存控制函数*/
 void OLED_Clear(void);
@@ -38,15 +38,25 @@ void OLED_Reverse(void);
 void OLED_ReverseArea(int16_t X, int16_t Y, uint8_t Width, uint8_t Height);
 
 /*显示函数*/
-void OLED_ShowChar(int16_t X, int16_t Y, char Char);
-void OLED_ShowString(int16_t X, int16_t Y, char *String);
-void OLED_ShowNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
-void OLED_ShowSignedNum(int16_t X, int16_t Y, int32_t Number, uint8_t Length);
-void OLED_ShowHexNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
-void OLED_ShowBinNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
-void OLED_ShowFloatNum(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength);
+/* 后缀1：小字号6x8；后缀2：大字号8x16。 */
+/* 数字长度：十进制0~10位，十六进制0~8位，二进制0~32位；小数0~9位。 */
+void OLED_ShowChar1(int16_t X, int16_t Y, char Char);
+void OLED_ShowChar2(int16_t X, int16_t Y, char Char);
+void OLED_ShowString1(int16_t X, int16_t Y, char *String);
+void OLED_ShowString2(int16_t X, int16_t Y, char *String);
+void OLED_ShowNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowSignedNum1(int16_t X, int16_t Y, int32_t Number, uint8_t Length);
+void OLED_ShowSignedNum2(int16_t X, int16_t Y, int32_t Number, uint8_t Length);
+void OLED_ShowHexNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowHexNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowBinNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowBinNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length);
+void OLED_ShowFloatNum1(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength);
+void OLED_ShowFloatNum2(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength);
 void OLED_ShowImage(int16_t X, int16_t Y, uint8_t Width, uint8_t Height, const uint8_t *Image);
-void OLED_Printf(int16_t X, int16_t Y, char *format, ...);
+void OLED_Printf1(int16_t X, int16_t Y, char *format, ...);
+void OLED_Printf2(int16_t X, int16_t Y, char *format, ...);
 
 /*绘图函数*/
 void OLED_DrawPoint(int16_t X, int16_t Y);

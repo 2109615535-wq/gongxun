@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+extern const uint8_t OLED_F8x16[][16];
+
 /**
   * 数据存储格式：
   * 纵向8点，高位在下，先从左到右，再从上到下
@@ -76,7 +78,7 @@
 /**
   * OLED显存数组
   * 所有的显示函数，都只是对此显存数组进行读写
-  * 随后调用OLED_Update函数或OLED_UpdateArea函数
+  * 随后调用OLED_Update函数
   * 才会将显存数组的数据发送到OLED硬件，进行显示
   */
 uint8_t OLED_DisplayBuf[8][128];
@@ -420,63 +422,43 @@ uint8_t OLED_IsInAngle(int16_t X, int16_t Y, int16_t StartAngle, int16_t EndAngl
   * 参    数：无
   * 返 回 值：无
   * 说    明：所有的显示函数，都只是对OLED显存数组进行读写
-  *           随后调用OLED_Update函数或OLED_UpdateArea函数
+  *           随后调用OLED_Update函数
   *           才会将显存数组的数据发送到OLED硬件，进行显示
   *           故调用显示函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
 void OLED_Update(void)
 {
-    uint8_t j;
-    /*遍历每一页*/
+    static uint8_t LastDisplayBuf[8][128];
+    static uint8_t HasUpdated = 0;
+    uint8_t j, x, Start, i;
+
     for (j = 0; j < 8; j ++)
     {
-        /*设置光标位置为每一页的第一列*/
-        OLED_SetCursor(j, 0);
-        /*连续写入128个数据，将显存数组的数据写入到OLED硬件*/
-        OLED_WriteData(OLED_DisplayBuf[j], 128);
-    }
-}
-
-/**
-  * 函    数：将OLED显存数组部分更新到OLED屏幕
-  * 参    数：X 指定区域左上角的横坐标，范围：-32768~32767，屏幕区域：0~127
-  * 参    数：Y 指定区域左上角的纵坐标，范围：-32768~32767，屏幕区域：0~63
-  * 参    数：Width 指定区域的宽度，范围：0~128
-  * 参    数：Height 指定区域的高度，范围：0~64
-  * 返 回 值：无
-  * 说    明：此函数会至少更新参数指定的区域
-  *           如果更新区域Y轴只包含部分页，则同一页的剩余部分会跟随一起更新
-  * 说    明：所有的显示函数，都只是对OLED显存数组进行读写
-  *           随后调用OLED_Update函数或OLED_UpdateArea函数
-  *           才会将显存数组的数据发送到OLED硬件，进行显示
-  *           故调用显示函数后，要想真正地呈现在屏幕上，还需调用更新函数
-  */
-void OLED_UpdateArea(int16_t X, int16_t Y, uint8_t Width, uint8_t Height)
-{
-    int16_t j;
-    int16_t Page, Page1;
-    
-    /*负数坐标在计算页地址时需要加一个偏移*/
-    /*(Y + Height - 1) / 8 + 1的目的是(Y + Height) / 8并向上取整*/
-    Page = Y / 8;
-    Page1 = (Y + Height - 1) / 8 + 1;
-    if (Y < 0)
-    {
-        Page -= 1;
-        Page1 -= 1;
-    }
-    
-    /*遍历指定区域涉及的相关页*/
-    for (j = Page; j < Page1; j ++)
-    {
-        if (X >= 0 && X <= 127 && j >= 0 && j <= 7)		//超出屏幕的内容不显示
+        x = 0;
+        while (x < 128)
         {
-            /*设置光标位置为相关页的指定列*/
-            OLED_SetCursor(j, X);
-            /*连续写入Width个数据，将显存数组的数据写入到OLED硬件*/
-            OLED_WriteData(&OLED_DisplayBuf[j][X], Width);
+            if (HasUpdated && OLED_DisplayBuf[j][x] == LastDisplayBuf[j][x])
+            {
+                x ++;
+                continue;
+            }
+
+            Start = x;
+            do
+            {
+                x ++;
+            } while (x < 128 && (!HasUpdated || OLED_DisplayBuf[j][x] != LastDisplayBuf[j][x]));
+
+            OLED_SetCursor(j, Start);
+            OLED_WriteData(&OLED_DisplayBuf[j][Start], x - Start);
+            for (i = Start; i < x; i ++)
+            {
+                LastDisplayBuf[j][i] = OLED_DisplayBuf[j][i];
+            }
         }
     }
+
+    HasUpdated = 1;
 }
 
 /**
@@ -573,8 +555,12 @@ void OLED_ReverseArea(int16_t X, int16_t Y, uint8_t Width, uint8_t Height)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowChar(int16_t X, int16_t Y, char Char)
+void OLED_ShowChar1(int16_t X, int16_t Y, char Char)
 {
+    if ((uint8_t)Char < ' ' || (uint8_t)Char > '~')
+    {
+        return;
+    }
     /*将ASCII字模库OLED_F6x8的指定数据以6*8的图像格式显示*/
     OLED_ShowImage(X, Y, 6, 8, OLED_F6x8[Char - ' ']);
 }
@@ -587,7 +573,7 @@ void OLED_ShowChar(int16_t X, int16_t Y, char Char)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowString(int16_t X, int16_t Y, char *String)
+void OLED_ShowString1(int16_t X, int16_t Y, char *String)
 {
     uint16_t i = 0;
     uint16_t XOffset = 0;
@@ -597,10 +583,47 @@ void OLED_ShowString(int16_t X, int16_t Y, char *String)
         /*字体固定为6*8，只显示ASCII可见字符*/
         if ((uint8_t)String[i] >= ' ' && (uint8_t)String[i] <= '~')
         {
-            OLED_ShowChar(X + XOffset, Y, String[i]);
+            OLED_ShowChar1(X + XOffset, Y, String[i]);
             XOffset += 6;
         }
         i ++;
+    }
+}
+
+void OLED_ShowChar2(int16_t X, int16_t Y, char Char)
+{
+    if ((uint8_t)Char < ' ' || (uint8_t)Char > '~')
+    {
+        return;
+    }
+
+    OLED_ShowImage(X, Y, 8, 16, OLED_F8x16[Char - ' ']);
+}
+
+void OLED_ShowString2(int16_t X, int16_t Y, char *String)
+{
+    uint16_t i = 0;
+    int16_t XOffset = 0;
+
+    while (String[i] != '\0')
+    {
+        if ((uint8_t)String[i] >= ' ' && (uint8_t)String[i] <= '~')
+        {
+            OLED_ShowChar2(X + XOffset, Y, String[i]);
+            XOffset += 8;
+        }
+        i ++;
+    }
+}
+
+void OLED_ShowNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+{
+    uint8_t i;
+
+    for (i = 0; i < Length; i ++)
+    {
+        OLED_ShowChar2(X + i * 8, Y,
+                           Number / OLED_Pow(10, Length - i - 1) % 10 + '0');
     }
 }
 
@@ -613,7 +636,7 @@ void OLED_ShowString(int16_t X, int16_t Y, char *String)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+void OLED_ShowNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
 {
     uint8_t i;
     for (i = 0; i < Length; i++)		//遍历数字的每一位							
@@ -621,7 +644,7 @@ void OLED_ShowNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
         /*调用OLED_ShowChar函数，依次显示每个数字*/
         /*Number / OLED_Pow(10, Length - i - 1) % 10 可以十进制提取数字的每一位*/
         /*+ '0' 可将数字转换为字符格式*/
-        OLED_ShowChar(X + i * 6, Y, Number / OLED_Pow(10, Length - i - 1) % 10 + '0');
+        OLED_ShowChar1(X + i * 6, Y, Number / OLED_Pow(10, Length - i - 1) % 10 + '0');
     }
 }
 
@@ -634,19 +657,19 @@ void OLED_ShowNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowSignedNum(int16_t X, int16_t Y, int32_t Number, uint8_t Length)
+void OLED_ShowSignedNum1(int16_t X, int16_t Y, int32_t Number, uint8_t Length)
 {
     uint8_t i;
     uint32_t Number1;
     
     if (Number >= 0)						//数字大于等于0
     {
-        OLED_ShowChar(X, Y, '+');	//显示+号
+        OLED_ShowChar1(X, Y, '+');	//显示+号
         Number1 = Number;					//Number1直接等于Number
     }
     else									//数字小于0
     {
-        OLED_ShowChar(X, Y, '-');	//显示-号
+        OLED_ShowChar1(X, Y, '-');	//显示-号
         Number1 = 0U - (uint32_t)Number;					//Number1等于Number取负
     }
     
@@ -655,7 +678,7 @@ void OLED_ShowSignedNum(int16_t X, int16_t Y, int32_t Number, uint8_t Length)
         /*调用OLED_ShowChar函数，依次显示每个数字*/
         /*Number1 / OLED_Pow(10, Length - i - 1) % 10 可以十进制提取数字的每一位*/
         /*+ '0' 可将数字转换为字符格式*/
-        OLED_ShowChar(X + (i + 1) * 6, Y, Number1 / OLED_Pow(10, Length - i - 1) % 10 + '0');
+        OLED_ShowChar1(X + (i + 1) * 6, Y, Number1 / OLED_Pow(10, Length - i - 1) % 10 + '0');
     }
 }
 
@@ -668,7 +691,7 @@ void OLED_ShowSignedNum(int16_t X, int16_t Y, int32_t Number, uint8_t Length)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowHexNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+void OLED_ShowHexNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
 {
     uint8_t i, SingleNumber;
     for (i = 0; i < Length; i++)		//遍历数字的每一位
@@ -680,13 +703,13 @@ void OLED_ShowHexNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
         {
             /*调用OLED_ShowChar函数，显示此数字*/
             /*+ '0' 可将数字转换为字符格式*/
-            OLED_ShowChar(X + i * 6, Y, SingleNumber + '0');
+            OLED_ShowChar1(X + i * 6, Y, SingleNumber + '0');
         }
         else							//单个数字大于10
         {
             /*调用OLED_ShowChar函数，显示此数字*/
             /*+ 'A' 可将数字转换为从A开始的十六进制字符*/
-            OLED_ShowChar(X + i * 6, Y, SingleNumber - 10 + 'A');
+            OLED_ShowChar1(X + i * 6, Y, SingleNumber - 10 + 'A');
         }
     }
 }
@@ -700,7 +723,7 @@ void OLED_ShowHexNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowBinNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+void OLED_ShowBinNum1(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
 {
     uint8_t i;
     for (i = 0; i < Length; i++)		//遍历数字的每一位	
@@ -708,7 +731,7 @@ void OLED_ShowBinNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
         /*调用OLED_ShowChar函数，依次显示每个数字*/
         /*Number / OLED_Pow(2, Length - i - 1) % 2 可以二进制提取数字的每一位*/
         /*+ '0' 可将数字转换为字符格式*/
-        OLED_ShowChar(X + i * 6, Y, Number / OLED_Pow(2, Length - i - 1) % 2 + '0');
+        OLED_ShowChar1(X + i * 6, Y, Number / OLED_Pow(2, Length - i - 1) % 2 + '0');
     }
 }
 
@@ -722,17 +745,17 @@ void OLED_ShowBinNum(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_ShowFloatNum(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength)
+void OLED_ShowFloatNum1(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength)
 {
     uint32_t PowNum, IntNum, FraNum;
     
     if (Number >= 0)						//数字大于等于0
     {
-        OLED_ShowChar(X, Y, '+');	//显示+号
+        OLED_ShowChar1(X, Y, '+');	//显示+号
     }
     else									//数字小于0
     {
-        OLED_ShowChar(X, Y, '-');	//显示-号
+        OLED_ShowChar1(X, Y, '-');	//显示-号
         Number = -Number;					//Number取负
     }
     
@@ -744,13 +767,73 @@ void OLED_ShowFloatNum(int16_t X, int16_t Y, double Number, uint8_t IntLength, u
     IntNum += FraNum / PowNum;				//若四舍五入造成了进位，则需要再加给整数
     
     /*显示整数部分*/
-    OLED_ShowNum(X + 6, Y, IntNum, IntLength);
+    OLED_ShowNum1(X + 6, Y, IntNum, IntLength);
     
     /*显示小数点*/
-    OLED_ShowChar(X + (IntLength + 1) * 6, Y, '.');
+    OLED_ShowChar1(X + (IntLength + 1) * 6, Y, '.');
     
     /*显示小数部分*/
-    OLED_ShowNum(X + (IntLength + 2) * 6, Y, FraNum, FraLength);
+    OLED_ShowNum1(X + (IntLength + 2) * 6, Y, FraNum, FraLength);
+}
+
+void OLED_ShowSignedNum2(int16_t X, int16_t Y, int32_t Number, uint8_t Length)
+{
+    uint32_t Magnitude = Number >= 0 ? (uint32_t)Number : 0U - (uint32_t)Number;
+
+    OLED_ShowChar2(X, Y, Number >= 0 ? '+' : '-');
+    OLED_ShowNum2(X + 8, Y, Magnitude, Length);
+}
+
+void OLED_ShowHexNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+{
+    uint8_t i;
+
+    if (Length > 8U)
+    {
+        return;
+    }
+    for (i = 0; i < Length; i ++)
+    {
+        uint8_t Digit = (Number >> (4U * (Length - i - 1U))) & 0x0FU;
+        OLED_ShowChar2(X + i * 8, Y, Digit < 10U ? Digit + '0' : Digit - 10U + 'A');
+    }
+}
+
+void OLED_ShowBinNum2(int16_t X, int16_t Y, uint32_t Number, uint8_t Length)
+{
+    uint8_t i;
+
+    if (Length > 32U)
+    {
+        return;
+    }
+    for (i = 0; i < Length; i ++)
+    {
+        OLED_ShowChar2(X + i * 8, Y,
+                       ((Number >> (Length - i - 1U)) & 1U) + '0');
+    }
+}
+
+void OLED_ShowFloatNum2(int16_t X, int16_t Y, double Number, uint8_t IntLength, uint8_t FraLength)
+{
+    uint32_t PowNum, IntNum, FraNum;
+
+    OLED_ShowChar2(X, Y, Number >= 0 ? '+' : '-');
+    if (Number < 0)
+    {
+        Number = -Number;
+    }
+
+    IntNum = Number;
+    Number -= IntNum;
+    PowNum = OLED_Pow(10, FraLength);
+    FraNum = round(Number * PowNum);
+    IntNum += FraNum / PowNum;
+    FraNum %= PowNum;
+
+    OLED_ShowNum2(X + 8, Y, IntNum, IntLength);
+    OLED_ShowChar2(X + (IntLength + 1) * 8, Y, '.');
+    OLED_ShowNum2(X + (IntLength + 2) * 8, Y, FraNum, FraLength);
 }
 
 /**
@@ -814,14 +897,25 @@ void OLED_ShowImage(int16_t X, int16_t Y, uint8_t Width, uint8_t Height, const u
   * 返 回 值：无
   * 说    明：调用此函数后，要想真正地呈现在屏幕上，还需调用更新函数
   */
-void OLED_Printf(int16_t X, int16_t Y, char *format, ...)
+void OLED_Printf1(int16_t X, int16_t Y, char *format, ...)
 {
     char String[256];						//定义字符数组
     va_list arg;							//定义可变参数列表数据类型的变量arg
     va_start(arg, format);					//从format开始，接收参数列表到arg变量
-    vsprintf(String, format, arg);			//使用vsprintf打印格式化字符串和参数列表到字符数组中
+    vsnprintf(String, sizeof(String), format, arg);
     va_end(arg);							//结束变量arg
-    OLED_ShowString(X, Y, String);//OLED显示字符数组（字符串）
+    OLED_ShowString1(X, Y, String);//OLED显示字符数组（字符串）
+}
+
+void OLED_Printf2(int16_t X, int16_t Y, char *format, ...)
+{
+    char String[256];
+    va_list arg;
+
+    va_start(arg, format);
+    vsnprintf(String, sizeof(String), format, arg);
+    va_end(arg);
+    OLED_ShowString2(X, Y, String);
 }
 
 /**
