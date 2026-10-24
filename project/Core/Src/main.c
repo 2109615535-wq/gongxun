@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "hdz601.h"
+#include "encoder.h"
 
 
 /* USER CODE END Includes */
@@ -63,6 +64,15 @@ UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
+static uint8_t active_motor = 0U;
+static void (*const motor_set_speed[])(int32_t) =
+{
+    MotorSetSpeed1, MotorSetSpeed2, MotorSetSpeed3, MotorSetSpeed4
+};
+static Encoder_t *const motor_encoders[] =
+{
+    &encoder1, &encoder2, &encoder3, &encoder4
+};
 
 /* USER CODE END PV */
 
@@ -88,24 +98,23 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/* Run every second: 0 -> 1000 -> 0, in steps of 50 (5% duty). */
-static void motor1_ramp_task(void)
+/* Display the active motor and its measured speed in counts per second. */
+static void motor_oled_task(void)
 {
-    static int32_t speed = 0;
-    static int32_t step = 50;
+    OLED_ShowNum2(8, 0, active_motor + 1U, 1);
+    OLED_ShowSignedNum2(72, 0, 500, 4);
+    OLED_ShowNum2(24, 16, active_motor + 1U, 1);
+    OLED_ShowSignedNum2(0, 32,
+                        encoder_get_speed(motor_encoders[active_motor]), 10);
+}
 
-    speed += step;
-    if (speed >= 1000)
-    {
-        step = -50;
-    }
-    else if (speed <= 0)
-    {
-        step = 50;
-    }
-
-    MotorSetSpeed1(speed);
-    OLED_ShowNum2(72, 0, (uint32_t)speed, 4);
+/* Stop the current motor before starting the next one: 1 -> 2 -> 3 -> 4. */
+static void motor_switch_task(void)
+{
+    motor_set_speed[active_motor](0);
+    active_motor = (active_motor + 1U) % 4U;
+    motor_set_speed[active_motor](500);
+    motor_oled_task();
 }
 
 /* USER CODE END 0 */
@@ -154,13 +163,18 @@ int main(void)
     /* USER CODE BEGIN 2 */
     Motor_Init();
     scheduler_init();
+    encoder_init();
+    scheduler_add_task(encoder_process, 10U, 1U);
     hdz601_init();
     scheduler_add_task(hdz601_process, 5U, 0U);
     OLED_Init();
     OLED_ShowString2(0, 0, "M1 Speed:");
-    OLED_ShowNum2(72, 0, 0U, 4);
+    OLED_ShowString2(0, 16, "ENC1 count/s");
+    motor_oled_task();
     scheduler_add_task(OLED_Update, 50, 3);
-    scheduler_add_task(motor1_ramp_task, 1000U, 1U);
+    scheduler_add_task(motor_oled_task, 100U, 2U);
+    motor_set_speed[active_motor](500);
+    scheduler_add_task(motor_switch_task, 5000U, 1U);
     //scheduler_add_task(hdz601_oledshow, 20, 3);
 
 

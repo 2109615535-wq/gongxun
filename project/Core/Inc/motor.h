@@ -24,8 +24,10 @@
 void Motor_Init(void);
 
 /* Speed: -1000..1000 (PWM duty command, not measured RPM).
- * Positive: PH high; negative: PH low; zero: PWM off.
- * Motors 1..4 use TIM1 CH1..CH4 respectively; EN is active high.
+ * Positive: forward; negative: reverse; zero: PWM off.
+ * Forward PH: low for motors 1/4, high for motors 2/3.
+ * Motors 1..4 use TIM1 CH4, CH3, CH2, CH1 respectively; EN is active high.
+ * PH/EN: PC0/PE13, PC1/PE11, PC2/PE9, PC3/PE7 respectively.
  */
 void MotorSetSpeed1(int32_t Speed);
 void MotorSetSpeed2(int32_t Speed);

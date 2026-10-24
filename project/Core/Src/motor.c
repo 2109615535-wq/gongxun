@@ -6,7 +6,7 @@ extern TIM_HandleTypeDef htim1;
 #define MOTOR_SPEED_MAX 1000
 
 static void motor_set_speed(uint32_t channel, GPIO_TypeDef *port,
-                            uint16_t pin, int32_t speed)
+                            uint16_t pin, int32_t speed, int8_t direction)
 {
     uint32_t magnitude;
     uint32_t pulse;
@@ -19,6 +19,9 @@ static void motor_set_speed(uint32_t channel, GPIO_TypeDef *port,
     {
         speed = -MOTOR_SPEED_MAX;
     }
+
+    /* Apply mounting direction after clamping so negation cannot overflow. */
+    speed *= direction;
 
     if (speed != 0)
     {
@@ -61,21 +64,21 @@ void Motor_Init(void)
 
 void MotorSetSpeed1(int32_t Speed)
 {
-    motor_set_speed(TIM_CHANNEL_1, motor1_Port, motor1_Pin, Speed);
+    motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin, Speed, -1);
 }
 
 void MotorSetSpeed2(int32_t Speed)
 {
-    motor_set_speed(TIM_CHANNEL_2, motor2_Port, motor2_Pin, Speed);
+    motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin, Speed, 1);
 }
 
 void MotorSetSpeed3(int32_t Speed)
 {
-    motor_set_speed(TIM_CHANNEL_3, motor3_Port, motor3_Pin, Speed);
+    motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin, Speed, 1);
 }
 
 void MotorSetSpeed4(int32_t Speed)
 {
-    motor_set_speed(TIM_CHANNEL_4, motor4_Port, motor4_Pin, Speed);
+    motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin, Speed, -1);
 }
 
