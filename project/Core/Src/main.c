@@ -88,6 +88,26 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+/* Run every second: 0 -> 1000 -> 0, in steps of 50 (5% duty). */
+static void motor1_ramp_task(void)
+{
+    static int32_t speed = 0;
+    static int32_t step = 50;
+
+    speed += step;
+    if (speed >= 1000)
+    {
+        step = -50;
+    }
+    else if (speed <= 0)
+    {
+        step = 50;
+    }
+
+    MotorSetSpeed1(speed);
+    OLED_ShowNum2(72, 0, (uint32_t)speed, 4);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -132,12 +152,16 @@ int main(void)
     MX_USART3_UART_Init();
     MX_USART6_UART_Init();
     /* USER CODE BEGIN 2 */
+    Motor_Init();
     scheduler_init();
     hdz601_init();
     scheduler_add_task(hdz601_process, 5U, 0U);
     OLED_Init();
+    OLED_ShowString2(0, 0, "M1 Speed:");
+    OLED_ShowNum2(72, 0, 0U, 4);
     scheduler_add_task(OLED_Update, 50, 3);
-    scheduler_add_task(hdz601_oledshow, 20, 3);
+    scheduler_add_task(motor1_ramp_task, 1000U, 1U);
+    //scheduler_add_task(hdz601_oledshow, 20, 3);
 
 
 
@@ -791,14 +815,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, motor_ph1_Pin|motor_ph2_Pin|motor_ph3_Pin|motor_ph4_Pin
+  HAL_GPIO_WritePin(GPIOC, motor1_Pin|motor2_Pin|motor3_Pin|motor4_Pin
                           |SPI1_CS_Pin|NRF_CE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, NRF_IRQ_Pin|OLED_SCL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, motor_en4_Pin|motor_en3_Pin|motor_en2_Pin|motor_en1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, motor4_En_Pin|motor3_En_Pin|motor2_En_Pin|motor1_En_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
@@ -806,15 +830,15 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OLED_SDA_GPIO_Port, OLED_SDA_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : motor_ph1_Pin motor_ph2_Pin */
-  GPIO_InitStruct.Pin = motor_ph1_Pin|motor_ph2_Pin;
+  /*Configure GPIO pins : motor1_Pin motor2_Pin */
+  GPIO_InitStruct.Pin = motor1_Pin|motor2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : motor_ph3_Pin motor_ph4_Pin SPI1_CS_Pin NRF_CE_Pin */
-  GPIO_InitStruct.Pin = motor_ph3_Pin|motor_ph4_Pin|SPI1_CS_Pin|NRF_CE_Pin;
+  /*Configure GPIO pins : motor3_Pin motor4_Pin SPI1_CS_Pin NRF_CE_Pin */
+  GPIO_InitStruct.Pin = motor3_Pin|motor4_Pin|SPI1_CS_Pin|NRF_CE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -827,8 +851,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(NRF_IRQ_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : motor_en4_Pin motor_en3_Pin motor_en2_Pin motor_en1_Pin */
-  GPIO_InitStruct.Pin = motor_en4_Pin|motor_en3_Pin|motor_en2_Pin|motor_en1_Pin;
+  /*Configure GPIO pins : motor4_En_Pin motor3_En_Pin motor2_En_Pin motor1_En_Pin */
+  GPIO_InitStruct.Pin = motor4_En_Pin|motor3_En_Pin|motor2_En_Pin|motor1_En_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
