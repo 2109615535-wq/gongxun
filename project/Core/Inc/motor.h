@@ -2,6 +2,8 @@
 #define __MOTOR_H
 
 #include "stm32f4xx_hal.h"
+#include "pid.h"
+#include "encoder.h"
 
 #define motor1_Pin      GPIO_PIN_0
 #define motor1_Port     GPIOC
@@ -20,9 +22,31 @@
 #define motor1_En_Pin   GPIO_PIN_13
 #define motor1_En_Port  GPIOE
 
+#define kp_motor1 1.2f
+#define ki_motor1 0.3f
+#define kd_motor1 0.0f
+
+#define kp_motor2 1.2f
+#define ki_motor2 0.3f 
+#define kd_motor2 0.0f
+
+#define kp_motor3 1.2f
+#define ki_motor3 0.3f
+#define kd_motor3 0.0f
+
+#define kp_motor4 1.2f
+#define ki_motor4 0.3f
+#define kd_motor4 0.01f
+
 /* Call after GPIO and TIM1 initialization. All motors start at zero duty. */
 void Motor_Init(void);
+void MotorEnable1(uint8_t Enable);
+void MotorEnable2(uint8_t Enable);
+void MotorEnable3(uint8_t Enable);
+void MotorEnable4(uint8_t Enable);
 
+
+void motor_process(void);
 /* Speed: -1000..1000 (PWM duty command, not measured RPM).
  * Positive: forward; negative: reverse; zero: PWM off.
  * Forward PH: low for motors 1/4, high for motors 2/3.

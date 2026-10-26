@@ -80,6 +80,7 @@ static void encoder_update(Encoder_t *enc, uint32_t now)
     delta *= enc->direction;
     enc->count += delta;
     speed = delta * 1000 / elapsed;
+
     if (speed > INT32_MAX)
     {
         speed = INT32_MAX;
@@ -88,6 +89,7 @@ static void encoder_update(Encoder_t *enc, uint32_t now)
     {
         speed = INT32_MIN;
     }
+
     enc->speed = (int32_t)speed;
     enc->last_counter = current;
     enc->last_tick = now;
@@ -111,5 +113,24 @@ int64_t encoder_get_count(const Encoder_t *enc)
 
 int32_t encoder_get_speed(const Encoder_t *enc)
 {
-    return enc != NULL ? enc->speed : 0;
+    int64_t speed;
+
+    if (enc == NULL || ENCODER_SPEED_AT_PWM1000 <= 0L)
+    {
+        return 0;
+    }
+
+    /* Convert raw counts/s to the same -1000..1000 scale used by PWM. */
+    speed = (int64_t)enc->speed * 1000L / ENCODER_SPEED_AT_PWM1000;
+
+    if (speed > 1000L)
+    {
+        speed = 1000L;
+    }
+    else if (speed < -1000L)
+    {
+        speed = -1000L;
+    }
+
+    return (int32_t)speed;
 }

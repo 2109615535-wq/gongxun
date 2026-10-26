@@ -1,4 +1,5 @@
 #include "hdz601.h"
+#include "faraway.h"
 
 #include <stddef.h>
 
@@ -114,6 +115,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     uint16_t next_head;
 
+    if (huart->Instance == UART5) {
+        faraway_uart_rx_complete(huart);
+        return;
+    }
     if ((huart->Instance != USART2) || !hdz601_opened) {
         return;
     }
@@ -131,6 +136,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
+    if (huart->Instance == UART5) {
+        faraway_uart_error(huart);
+        return;
+    }
     if ((huart->Instance == USART2) && hdz601_opened) {
         g_hdz601_uart2_error_count++;
         if (HAL_UART_Receive_IT(huart, &hdz601_uart2_rx_byte, 1U) != HAL_OK) {

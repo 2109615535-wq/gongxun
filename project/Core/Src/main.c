@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 #include "hdz601.h"
 #include "encoder.h"
+#include "faraway.h"
 
 
 /* USER CODE END Includes */
@@ -64,15 +65,6 @@ UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
-static uint8_t active_motor = 0U;
-static void (*const motor_set_speed[])(int32_t) =
-{
-    MotorSetSpeed1, MotorSetSpeed2, MotorSetSpeed3, MotorSetSpeed4
-};
-static Encoder_t *const motor_encoders[] =
-{
-    &encoder1, &encoder2, &encoder3, &encoder4
-};
 
 /* USER CODE END PV */
 
@@ -98,23 +90,17 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/* Display the active motor and its measured speed in counts per second. */
+extern PID_t pid_motor2;
+
 static void motor_oled_task(void)
 {
-    OLED_ShowNum2(8, 0, active_motor + 1U, 1);
-    OLED_ShowSignedNum2(72, 0, 500, 4);
-    OLED_ShowNum2(24, 16, active_motor + 1U, 1);
-    OLED_ShowSignedNum2(0, 32,
-                        encoder_get_speed(motor_encoders[active_motor]), 10);
-}
+    /* Clear all three rows so shorter values do not leave old digits behind. */
+    OLED_ClearArea(0, 0, 128, 48);
 
-/* Stop the current motor before starting the next one: 1 -> 2 -> 3 -> 4. */
-static void motor_switch_task(void)
-{
-    motor_set_speed[active_motor](0);
-    active_motor = (active_motor + 1U) % 4U;
-    motor_set_speed[active_motor](500);
-    motor_oled_task();
+    OLED_Printf2(0, 0, "Target:%ld", (long)pid_motor2.target);
+    OLED_Printf2(0, 16, "Output:%ld", (long)pid_motor2.output);
+    OLED_Printf2(0, 32, "Speed:%ld",
+                 (long)encoder_get_speed(&encoder2));
 }
 
 /* USER CODE END 0 */
@@ -127,7 +113,6 @@ int main(void)
 {
 
     /* USER CODE BEGIN 1 */
-    hdz601_attitude_t attitude;
     /* USER CODE END 1 */
 
     /* MCU Configuration--------------------------------------------------------*/
@@ -161,23 +146,31 @@ int main(void)
     MX_USART3_UART_Init();
     MX_USART6_UART_Init();
     /* USER CODE BEGIN 2 */
-    Motor_Init();
     scheduler_init();
+
+    Motor_Init();
     encoder_init();
-    scheduler_add_task(encoder_process, 10U, 1U);
+    scheduler_add_task(motor_process, 20U, 2U);
+
     hdz601_init();
-    scheduler_add_task(hdz601_process, 5U, 0U);
+    scheduler_add_task(hdz601_process, 5U, 1U);
+
     OLED_Init();
-    OLED_ShowString2(0, 0, "M1 Speed:");
-    OLED_ShowString2(0, 16, "ENC1 count/s");
-    motor_oled_task();
-    scheduler_add_task(OLED_Update, 50, 3);
-    scheduler_add_task(motor_oled_task, 100U, 2U);
-    motor_set_speed[active_motor](500);
-    scheduler_add_task(motor_switch_task, 5000U, 1U);
-    //scheduler_add_task(hdz601_oledshow, 20, 3);
+    scheduler_add_task(motor_oled_task, 50U, 3U);
+    scheduler_add_task(OLED_Update, 50U, 3U);
 
+    MotorEnable1(0);
+    MotorEnable2(0);
+    MotorEnable3(0);
+    MotorEnable4(0);
+    MotorSetSpeed2(5);
+    MotorEnable2(1);
 
+    if (!faraway_init()) {
+        Error_Handler();
+    }
+    scheduler_add_task(faraway_process, 5U, 2U);
+    scheduler_add_task(faraway_report, 50U, 3U);
 
     /* USER CODE END 2 */
 
@@ -839,7 +832,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, motor4_En_Pin|motor3_En_Pin|motor2_En_Pin|motor1_En_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_Port, LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OLED_SDA_GPIO_Port, OLED_SDA_Pin, GPIO_PIN_SET);
@@ -877,7 +870,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(LED_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : key1_Pin key4_Pin key3_Pin key2_Pin */
   GPIO_InitStruct.Pin = key1_Pin|key4_Pin|key3_Pin|key2_Pin;

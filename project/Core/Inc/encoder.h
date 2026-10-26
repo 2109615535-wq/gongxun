@@ -3,6 +3,9 @@
 
 #include "stm32f4xx_hal.h"
 
+/* Motor 2 measured about 543170 encoder counts/s at PWM command 1000. */
+#define ENCODER_SPEED_AT_PWM1000 (543170L)
+
 /* Change a channel to -1 if forward motor motion gives negative counts. */
 #define ENCODER1_DIRECTION (1)
 #define ENCODER2_DIRECTION (-1)
@@ -21,7 +24,7 @@ typedef struct
     TIM_HandleTypeDef *timer;
     int8_t direction;
     int64_t count;          /* Accumulated signed count since init/reset. */
-    int32_t speed;          /* Signed counts per second, not RPM. */
+    int32_t speed;          /* Raw signed encoder counts per second. */
     uint32_t last_counter;
     uint32_t last_tick;
 } Encoder_t;
@@ -39,6 +42,7 @@ void encoder_init(void);
  */
 void encoder_process(void);
 int64_t encoder_get_count(const Encoder_t *enc);
+/* Returns speed normalized to the motor PWM scale: -1000..1000. */
 int32_t encoder_get_speed(const Encoder_t *enc);
 /* Clears software count/speed and snapshots the running hardware counter. */
 void encoder_reset(Encoder_t *enc);
