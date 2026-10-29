@@ -17,7 +17,7 @@ typedef struct {
     float error_int;
 
     float output_max;
-
+    float error_int_max;
 } PID_t;
 
 void PID_Init(PID_t *pid);

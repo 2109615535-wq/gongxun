@@ -3,7 +3,7 @@
 
 extern TIM_HandleTypeDef htim1;
 
-#define MOTOR_SPEED_MAX 1000
+
 
 PID_t pid_motor1;
 PID_t pid_motor2;
@@ -82,26 +82,30 @@ void Motor_Init(void)
     motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin, 0,  1);
     motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin, 0, -1);
 
-    PID_Init(&pid_motor1);
+    PID_Init(&pid_motor1);//Çå¿Õpid
     PID_Init(&pid_motor2);
     PID_Init(&pid_motor3);
     PID_Init(&pid_motor4);
 
-    pid_motor1.kp = kp_motor1;
+    pid_motor1.kp = kp_motor1;//¸³Öµpid
     pid_motor1.ki = ki_motor1;
     pid_motor1.kd = kd_motor1;
+    pid_motor1.error_int_max = ERROR_INT_MAX;
 
     pid_motor2.kp = kp_motor2;
     pid_motor2.ki = ki_motor2;
     pid_motor2.kd = kd_motor2;
+    pid_motor2.error_int_max = ERROR_INT_MAX;
 
     pid_motor3.kp = kp_motor3;
     pid_motor3.ki = ki_motor3;
     pid_motor3.kd = kd_motor3;
+    pid_motor3.error_int_max = ERROR_INT_MAX;
 
     pid_motor4.kp = kp_motor4;
     pid_motor4.ki = ki_motor4;
     pid_motor4.kd = kd_motor4;
+    pid_motor4.error_int_max = ERROR_INT_MAX;
 
     pid_motor1.output_max = MOTOR_SPEED_MAX;
     pid_motor2.output_max = MOTOR_SPEED_MAX;

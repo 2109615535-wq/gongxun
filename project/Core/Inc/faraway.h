@@ -10,10 +10,11 @@
  *   TARGET,500       Motor 2 target speed, integer -1000..1000.
  *   PID,1.2,0.3,0    Motor 2 Kp, Ki, Kd; each finite and within 0..100.
  *   ENABLE,0         Disable motor 2 immediately; 1 enables it again.
+ *   RUN,1            Enable all four motors; 0 disables all four.
  *   GET              Request an immediate status report.
  * Optional spaces around comma-separated fields are accepted.
  * Maximum command length: 95 bytes, excluding the line ending.
- * Replies: OK,TARGET / OK,PID / OK,ENABLE, or ERR,<reason>.
+ * Replies: OK,TARGET / OK,PID / OK,ENABLE / OK,RUN, or ERR,<reason>.
  * No command is applied until its complete line has passed validation.
  * An overflow or UART error discards input through the next line ending.
  *

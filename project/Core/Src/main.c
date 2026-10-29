@@ -159,18 +159,20 @@ int main(void)
     scheduler_add_task(motor_oled_task, 50U, 3U);
     scheduler_add_task(OLED_Update, 50U, 3U);
 
-    MotorEnable1(0);
-    MotorEnable2(0);
-    MotorEnable3(0);
-    MotorEnable4(0);
-    MotorSetSpeed2(5);
+    MotorEnable1(1);
     MotorEnable2(1);
+    MotorEnable3(1);
+    MotorEnable4(1);
+    MotorSetSpeed2(500);
+    MotorSetSpeed2(500);
+    MotorSetSpeed2(500);
+    MotorSetSpeed2(500);
 
     if (!faraway_init()) {
         Error_Handler();
     }
-    scheduler_add_task(faraway_process, 5U, 2U);
-    scheduler_add_task(faraway_report, 50U, 3U);
+    scheduler_add_task(faraway_process, 50U, 2U);
+    scheduler_add_task(faraway_report, 20U, 3U);
 
     /* USER CODE END 2 */
 

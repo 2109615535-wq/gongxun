@@ -283,6 +283,16 @@ static void faraway_command(char *command)
         faraway_reset_pid_history();
         MotorEnable2((uint8_t)value);
         faraway_send("OK,ENABLE\r\n");
+    } else if (count == 2U && strcmp(fields[0], "RUN") == 0) {
+        if (!faraway_read_integer(fields[1], &value) || (value != 0L && value != 1L)) {
+            faraway_send("ERR,RANGE\r\n");
+            return;
+        }
+        MotorEnable1((uint8_t)value);
+        MotorEnable2((uint8_t)value);
+        MotorEnable3((uint8_t)value);
+        MotorEnable4((uint8_t)value);
+        faraway_send("OK,RUN\r\n");
     } else {
         faraway_send("ERR,COMMAND\r\n");
     }

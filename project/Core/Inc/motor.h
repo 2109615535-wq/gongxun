@@ -22,7 +22,10 @@
 #define motor1_En_Pin   GPIO_PIN_13
 #define motor1_En_Port  GPIOE
 
-#define kp_motor1 1.2f
+#define MOTOR_SPEED_MAX 1000
+#define ERROR_INT_MAX 3000
+
+#define kp_motor1 1.5f
 #define ki_motor1 0.3f
 #define kd_motor1 0.0f
 
@@ -30,13 +33,13 @@
 #define ki_motor2 0.3f 
 #define kd_motor2 0.0f
 
-#define kp_motor3 1.2f
+#define kp_motor3 1.5f
 #define ki_motor3 0.3f
 #define kd_motor3 0.0f
 
-#define kp_motor4 1.2f
+#define kp_motor4 1.5f
 #define ki_motor4 0.3f
-#define kd_motor4 0.01f
+#define kd_motor4 0.0f
 
 /* Call after GPIO and TIM1 initialization. All motors start at zero duty. */
 void Motor_Init(void);
