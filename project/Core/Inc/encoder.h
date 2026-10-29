@@ -7,7 +7,7 @@
 #define ENCODER_SPEED_AT_PWM1000 (543170L)
 
 /* Change a channel to -1 if forward motor motion gives negative counts. */
-#define ENCODER1_DIRECTION (1)
+#define ENCODER1_DIRECTION (-1)
 #define ENCODER2_DIRECTION (-1)
 #define ENCODER3_DIRECTION (-1)
 #define ENCODER4_DIRECTION (1)

@@ -7,14 +7,17 @@
 
 #define FARAWAY_RX_SIZE       512U
 #define FARAWAY_RX_MASK       (FARAWAY_RX_SIZE - 1U)
-#define FARAWAY_TX_SIZE       512U
+#define FARAWAY_TX_SIZE       1024U
 #define FARAWAY_TX_MASK       (FARAWAY_TX_SIZE - 1U)
 #define FARAWAY_LINE_SIZE     96U
 #define FARAWAY_PROCESS_LIMIT 128U
 
 extern UART_HandleTypeDef huart5;
 extern TIM_HandleTypeDef htim1;
+extern PID_t pid_motor1;
 extern PID_t pid_motor2;
+extern PID_t pid_motor3;
+extern PID_t pid_motor4;
 
 static uint8_t rx_byte;
 static uint8_t rx_buffer[FARAWAY_RX_SIZE];
@@ -209,24 +212,47 @@ static void faraway_reset_pid_history(void)
 
 void faraway_report(void)
 {
-    char report[192];
+    static char report[512];
+    static PID_t *const motors[] = {
+        &pid_motor1, &pid_motor2, &pid_motor3, &pid_motor4
+    };
+    static Encoder_t *const encoders[] = {
+        &encoder1, &encoder2, &encoder3, &encoder4
+    };
+    static GPIO_TypeDef *const enable_ports[] = {
+        motor1_En_Port, motor2_En_Port, motor3_En_Port, motor4_En_Port
+    };
+    static const uint16_t enable_pins[] = {
+        motor1_En_Pin, motor2_En_Pin, motor3_En_Pin, motor4_En_Pin
+    };
+    unsigned int i;
+    unsigned int id;
+    unsigned int used = 1U;
     int length;
 
     if (!opened) {
         return;
     }
-    length = snprintf(report, sizeof(report),
-        "{\"target\":%ld,\"output\":%ld,\"speed\":%ld,"
-        "\"kp\":%.4f,\"ki\":%.4f,\"kd\":%.4f,\"enable\":%u}\r\n",
-        (long)pid_motor2.target, (long)pid_motor2.output,
-        (long)encoder_get_speed(&encoder2), (double)pid_motor2.kp,
-        (double)pid_motor2.ki, (double)pid_motor2.kd,
-        (unsigned int)(HAL_GPIO_ReadPin(motor2_En_Port, motor2_En_Pin) == GPIO_PIN_SET));
-    if (length > 0 && (unsigned int)length < sizeof(report)) {
-        faraway_send(report);
-    } else {
-        g_faraway_tx_drop_count++;
+    report[0] = '{';
+    for (i = 0U; i < 4U; i++) {
+        id = i + 1U;
+        length = snprintf(report + used, sizeof(report) - used - 3U,
+            "%s\"target%u\":%ld,\"output%u\":%ld,\"speed%u\":%ld,"
+            "\"kp%u\":%.4f,\"ki%u\":%.4f,\"kd%u\":%.4f,\"enable%u\":%u",
+            i == 0U ? "" : ",",
+            id, (long)motors[i]->target, id, (long)motors[i]->output,
+            id, (long)encoder_get_speed(encoders[i]),
+            id, (double)motors[i]->kp, id, (double)motors[i]->ki,
+            id, (double)motors[i]->kd,
+            id, (unsigned int)(HAL_GPIO_ReadPin(enable_ports[i], enable_pins[i]) == GPIO_PIN_SET));
+        if (length <= 0 || (unsigned int)length >= sizeof(report) - used - 3U) {
+            g_faraway_tx_drop_count++;
+            return;
+        }
+        used += (unsigned int)length;
     }
+    memcpy(report + used, "}\r\n", 4U);
+    faraway_send(report);
 }
 
 static void faraway_command(char *command)

@@ -163,16 +163,16 @@ int main(void)
     MotorEnable2(1);
     MotorEnable3(1);
     MotorEnable4(1);
+    MotorSetSpeed1(500);
     MotorSetSpeed2(500);
-    MotorSetSpeed2(500);
-    MotorSetSpeed2(500);
-    MotorSetSpeed2(500);
+    MotorSetSpeed3(500);
+    MotorSetSpeed4(500);
 
     if (!faraway_init()) {
         Error_Handler();
     }
     scheduler_add_task(faraway_process, 50U, 2U);
-    scheduler_add_task(faraway_report, 20U, 3U);
+    scheduler_add_task(faraway_report, 50U, 3U);
 
     /* USER CODE END 2 */
 

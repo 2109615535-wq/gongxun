@@ -25,7 +25,7 @@
 #define MOTOR_SPEED_MAX 1000
 #define ERROR_INT_MAX 3000
 
-#define kp_motor1 1.5f
+#define kp_motor1 1.2f
 #define ki_motor1 0.3f
 #define kd_motor1 0.0f
 
@@ -33,11 +33,11 @@
 #define ki_motor2 0.3f 
 #define kd_motor2 0.0f
 
-#define kp_motor3 1.5f
+#define kp_motor3 1.2f
 #define ki_motor3 0.3f
 #define kd_motor3 0.0f
 
-#define kp_motor4 1.5f
+#define kp_motor4 1.2f
 #define ki_motor4 0.3f
 #define kd_motor4 0.0f
 
@@ -52,7 +52,7 @@ void MotorEnable4(uint8_t Enable);
 void motor_process(void);
 /* Speed: -1000..1000 (PWM duty command, not measured RPM).
  * Positive: forward; negative: reverse; zero: PWM off.
- * Forward PH: low for motors 1/4, high for motors 2/3.
+ * Forward PH: low for motor 4, high for motors 1/2/3.
  * Motors 1..4 use TIM1 CH4, CH3, CH2, CH1 respectively; EN is active high.
  * PH/EN: PC0/PE13, PC1/PE11, PC2/PE9, PC3/PE7 respectively.
  */

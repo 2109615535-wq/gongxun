@@ -77,7 +77,7 @@ void Motor_Init(void)
     MotorSetSpeed3(0);
     MotorSetSpeed4(0);
 
-    motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin, 0, -1);
+    motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin, 0, 1);
     motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin, 0,  1);
     motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin, 0,  1);
     motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin, 0, -1);
@@ -142,7 +142,7 @@ void motor_process(void)
     PID_Update(&pid_motor4);
 
     motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin,
-                    (int32_t)pid_motor1.output, -1);
+                    (int32_t)pid_motor1.output, 1);
     motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin,
                     (int32_t)pid_motor2.output, 1);
     motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin,

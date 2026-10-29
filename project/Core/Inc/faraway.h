@@ -19,7 +19,9 @@
  * An overflow or UART error discards input through the next line ending.
  *
  * Status is one JSON object per line, reported every 50 ms by main.c:
- * {"target":500,"output":480,"speed":499,"kp":1.2,"ki":0.3,"kd":0,"enable":1}
+ * Fields for each motor N=1..4: targetN, outputN, speedN, kpN, kiN, kdN, enableN.
+ * Example fields: "target1":500,"output1":480,"speed1":499,"kp1":1.2,
+ * "ki1":0.3,"kd1":0,"enable1":1 (same fields for motors 2, 3 and 4).
  * Speed is normalized encoder speed, not PWM duty or RPM.
  * Ki/Kd use the existing PID convention, per control update (currently 20 ms).
  * PID changes clear error history. TARGET changes preserve the integral.
@@ -27,7 +29,8 @@
  * Remote settings are held in RAM and are lost after reset.
  * SerialWeb: text mode, UTF-8, 115200/8N1; enable LF/CRLF on send.
  * Select text parsing and clear the rule: JSON is parsed automatically.
- * Plot target, output and speed together. Other motors are not controlled.
+ * Plot targetN, outputN and speedN together for the desired motor.
+ * TARGET, PID and ENABLE still address motor 2; RUN addresses all four.
  */
 
 extern volatile uint32_t g_faraway_rx_overflow_count;
@@ -36,7 +39,7 @@ extern volatile uint32_t g_faraway_tx_drop_count;
 
 /* Call after MX_UART5_Init() and Motor_Init(); does not change motor state. */
 bool faraway_init(void);
-/* Scheduler tasks: process every 5 ms; report every 50 ms. Never call in ISR. */
+/* Scheduler tasks: process/report every 50 ms in main.c. Never call in ISR. */
 void faraway_process(void);
 void faraway_report(void);
 /* Forward UART5 RX/error callbacks here from the shared HAL callbacks. */
