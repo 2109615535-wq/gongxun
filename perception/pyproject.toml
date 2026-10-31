@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rescue-vision"
-version = "0.3.1"
+version = "0.3.2"
 description = "RK3588 monocular rescue perception and STM32 observation link"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24,<3", "opencv-python>=4.8,<6", "pyserial>=3.5,<4"]

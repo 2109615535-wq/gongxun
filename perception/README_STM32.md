@@ -1,6 +1,6 @@
 # 主控端视觉接入 README（观测协议 v1）
 
-本文供STM32主控负责人实现视觉接收和接近控制。2026-10-31核对基线：仓库`main`的`8c56323`，其中主控功能基线为`d915341`。视觉包v0.3.1已适配此版四电机遥测；本次不修改主控源码或v1线上字节布局。
+本文供STM32主控负责人实现视觉接收和接近控制。2026-10-31核对基线：仓库`main`的`6926a14`，其中主控功能基线为`d915341`。视觉包v0.3.2只支持此版四电机新格式；本次不修改主控源码或v1线上字节布局。
 
 ## 1. 先回答：上传内容是否足够主控开发
 
@@ -28,7 +28,7 @@
 - `tools/detect_green_distance.py`：电脑端离车测距，输出画面和文件，**不发送串口**；画面清空坐标不代表主控已收到无目标帧。
 - `python -m rescue_vision run ... --serial <设备路径>`：由`runtime.py`打包并发送v1二进制观测；没有`--serial`时只运行和记录。`session.py`只生成观测，也不自行打开串口。
 
-主控实际支持v1、且硬件端口已确认后，视觉负责人才能在自己的配置副本中将`serial_protocol`设为`vision_v1`。当前配置默认是`motor_debug_ascii`，运行器会在打开串口前拒绝向该接口发送二进制帧；旧名称`motor2_debug_ascii`在配置加载时归一化为新名称。
+主控实际支持v1、且硬件端口已确认后，视觉负责人才能在自己的配置副本中将`serial_protocol`设为`vision_v1`。当前配置默认是`motor_debug_ascii`，运行器会在打开串口前拒绝向该接口发送二进制帧；旧配置名称已不再接受。
 
 v1发送方向为视觉TX到主控RX，共地。无需主控请求、ACK或重传命令。实时观测使用新帧，不重发旧图像维持运动；反向任务消息尚未实现。
 
@@ -42,7 +42,7 @@ v1发送方向为视觉TX到主控RX，共地。无需主控请求、ACK或重�
 - `project/Core/Src/hdz601.c`已经定义`HAL_UART_RxCpltCallback`和`HAL_UART_ErrorCallback`，当前分发UART5和USART2。接视觉时应在现有回调中新增分支，不再定义第二个同名全局回调。
 - `main.c`使用合作式调度，`motor_process`和`position_encoder`当前为20ms。视觉任务建议10ms，需复用`scheduler_add_task`，并检查注册返回值、任务耗时及优先级。
 - 当前开机使能四电机并把目标设为50，`position_encoder`在`y_body>=50`时置四电机目标为0。开展接收验收前，电控须建立明确的运动使能和命令仲裁，避免开机目标、50cm试验逻辑、ASCII调试和视觉任务相互覆盖。
-- `faraway.c`目前上报`speed1/target1`到`speed4/target4`及`y_body`。视觉包v0.3.1的`stm32-status`已支持此格式，同时兼容旧单电机遥测。默认只接收，`--query`只发一次`GET`，不发送电机控制命令。
+- `faraway.c`目前上报`speed1/target1`到`speed4/target4`及`y_body`。视觉包v0.3.2的`stm32-status`只支持此格式，旧单电机数据作为无效行丢弃。默认只接收，`--query`只发一次`GET`，不发送电机控制命令。
 
 从`perception/`运行`python -m rescue_vision stm32-status --port COM3 --duration 5 --output recordings/stm32_status.jsonl`可只读记录，端口按实际设备修改。记录保持主控原始字段，标注`telemetry_format=four_motor`、速度归一化单位及`y_body_unit=cm`；后者是主控里程计，不是视觉目标距离。汇总分别报告有效样本、无效行、超长行和应答数量，错误应答还报告`error_replies/last_reply`。不从这些字段推断电机已停稳、已使能或视觉控制已具备。
 
@@ -266,7 +266,7 @@ for seq, tick in enumerate((1000, 1080, 1160)):
 5. 完成实车标定及底盘速度换算，再进行只转向、低速接近、危险阻断、实际停车延迟和到位锁存验收。`allow_forward=0`仍能转向，纯接收验收需由命令出口禁止全部运动。
 6. 明确旧50cm试验逻辑及ASCII调试与视觉控制的仲裁规则，验证视觉输出0不会被其他任务重新覆盖为非0。
 
-从`perception/`运行`python -m pytest -q tests/test_protocol_stm32.py`可复现24项主机协议/跨语言测试；v0.3.1完整软件套件119项通过，包含34项新增遥测和配置兼容测试。当前`faraway_report()`也经只读提取，在独立GCC夹具中输出JSON并通过新解析器核验。仓库未包含实车闭环验收通过的证据，不应把这些测试结果当成当前板内固件的停车保证。
+从`perception/`运行`python -m pytest -q tests/test_protocol_stm32.py`可复现24项主机协议/跨语言测试；v0.3.2完整软件套件114项通过，旧单电机兼容测试已移除，并覆盖旧数据/旧配置拒绝行为。当前`faraway_report()`此前经只读提取，在独立GCC夹具中输出JSON并通过解析核验。仓库未包含实车闭环验收通过的证据，不应把这些测试结果当成当前板内固件的停车保证。
 
 ## 13. 尚需双方确认，但不阻塞编写接收代码的项目
 

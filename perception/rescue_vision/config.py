@@ -7,9 +7,6 @@ def load_config(path):
     path = Path(path).resolve()
     cfg = json.loads(path.read_text(encoding="utf-8"))
     cfg.setdefault("serial_protocol", "motor_debug_ascii")
-    # Keep old profiles readable without implying the current firmware controls only motor 2.
-    if cfg["serial_protocol"] == "motor2_debug_ascii":
-        cfg["serial_protocol"] = "motor_debug_ascii"
     cfg.setdefault("detector_backend", "reference")
     cfg.setdefault("detector_pixel_space", "undistorted")
     for key in ("model", "manifest", "calibration"):

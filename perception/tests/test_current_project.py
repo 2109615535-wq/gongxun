@@ -12,7 +12,7 @@ from rescue_vision.calibrate import import_intrinsics
 from rescue_vision.geometry import GroundCalibration
 from rescue_vision.model_tools import write_json
 from rescue_vision.session import DetectionSession, detections_from_arrays
-from rescue_vision.stm32_status import monitor_status, parse_motor2_status
+from rescue_vision.stm32_status import monitor_status
 from rescue_vision.types import Detection, FrameFlag, Status
 
 
@@ -112,7 +112,8 @@ def test_current_uart_cannot_receive_binary_observations(monkeypatch, tmp_path, 
 
 @pytest.mark.parametrize("query", [False, True])
 def test_status_monitor_sends_nothing_or_get_only(monkeypatch, tmp_path, query):
-    data = dict(target=5, output=4, speed=5, kp=1.2, ki=.3, kd=0, enable=1)
+    data = dict(speed1=5, target1=5, speed2=5, target2=5,
+                speed3=5, target3=5, speed4=5, target4=5, y_body=1.25)
     chunks = [b"OK,GET\r\n"+json.dumps(data).encode()[:20], json.dumps(data).encode()[20:]+b"\r\n"]
     writes = []
     class Port:
@@ -133,15 +134,7 @@ def test_status_monitor_sends_nothing_or_get_only(monkeypatch, tmp_path, query):
     result = monitor_status("test", .03, output, query)
     assert writes == ([b"GET\n"] if query else [])
     assert result["samples"] == 1 and not result["chassis_control_available"]
-    assert json.loads(output.read_text())["target"] == 5
-
-
-@pytest.mark.parametrize("changes", [{"speed": float("nan")}, {"enable": True},
-                                     {"speed": 1001}, {"kp": -1}, {"enable": 2}])
-def test_motor2_telemetry_rejects_invalid_numbers(changes):
-    data = dict(target=5, output=4, speed=5, kp=1.2, ki=.3, kd=0, enable=1)
-    with pytest.raises(ValueError):
-        parse_motor2_status(json.dumps(dict(data, **changes)))
+    assert json.loads(output.read_text())["target2"] == 5
 
 
 def test_source_audit_detects_change_without_writing_project(tmp_path):

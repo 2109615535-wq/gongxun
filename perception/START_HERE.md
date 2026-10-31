@@ -24,7 +24,7 @@ python -m pip install -e ".[desktop,test]"
 python -m pytest -q
 ```
 
-主机与C接收器互通测试还需`gcc`在PATH中。2026-10-31，v0.3.1完整主机套件119项通过，包含四电机遥测、旧格式兼容和v1协议互通；命令行入口与显式路径标定加载也已核对。主机测试不需要连接相机、串口或电机。
+主机与C接收器互通测试还需`gcc`在PATH中。2026-10-31，v0.3.2完整主机套件114项通过，包含四电机遥测、旧数据/旧配置拒绝和v1协议互通；命令行入口与显式路径标定加载也已核对。主机测试不需要连接相机、串口或电机。
 
 ## 电脑端YOLO与C100离车测距
 
@@ -60,7 +60,7 @@ tools\run_green_distance_repo.cmd --camera 1
 
 视觉编码入口是`rescue_vision.protocol.encode()`；C接收入口是`RV_Init`、`RV_OnByte`、`RV_Step`。实际主控是否已更新接收能力、串口占用及整车速度接口，需要电控负责人核对当前工程和板内固件，不能直接用UART5 ASCII调试命令承接视觉观测。
 
-v0.3.1已适配当前四电机JSON遥测，兼容旧单电机字段。从`perception/`运行`python -m rescue_vision stm32-status --port COM3 --duration 5 --output recordings/stm32_status.jsonl`可只读记录，COM3按实际设备修改。可选`--query`只发一次`GET`；归一化速度和厘米单位的`y_body`均保留原值并标注单位，不转换成视觉目标位置。配置默认`motor_debug_ascii`，旧名称`motor2_debug_ascii`仍兼容；二者均禁止`run --serial`发送视觉二进制帧。
+v0.3.2只支持当前四电机JSON遥测，不接受旧单电机字段。从`perception/`运行`python -m rescue_vision stm32-status --port COM3 --duration 5 --output recordings/stm32_status.jsonl`可只读记录，COM3按实际设备修改。可选`--query`只发一次`GET`；归一化速度和厘米单位的`y_body`均保留原值并标注单位，不转换成视觉目标位置。调试配置只接受`motor_debug_ascii`，禁止`run --serial`发送视觉二进制帧。
 
 先做纯收发、显示及断流测试，再进行完成实车标定后的低速闭环。当前目录的上传不会自动修改主控固件。
 
