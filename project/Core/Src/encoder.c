@@ -1,4 +1,5 @@
 #include "encoder.h"
+#include "motor.h"
 #include "main.h"
 #include "scheduler.h"
 #include <stddef.h>
@@ -8,10 +9,10 @@ extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 
-Encoder_t encoder1 = {&htim4, ENCODER1_DIRECTION, 0, 0, 0U, 0U};
-Encoder_t encoder2 = {&htim2, ENCODER2_DIRECTION, 0, 0, 0U, 0U};
-Encoder_t encoder3 = {&htim3, ENCODER3_DIRECTION, 0, 0, 0U, 0U};
-Encoder_t encoder4 = {&htim5, ENCODER4_DIRECTION, 0, 0, 0U, 0U};
+Encoder_t encoder1 = {&htim4, -motor1_direction, 0, 0, 0U, 0U};
+Encoder_t encoder2 = {&htim2, -motor2_direction, 0, 0, 0U, 0U};
+Encoder_t encoder3 = {&htim3, -motor3_direction, 0, 0, 0U, 0U};
+Encoder_t encoder4 = {&htim5, -motor4_direction, 0, 0, 0U, 0U};
 
 static Encoder_t *const encoders[] =
 {
@@ -134,3 +135,8 @@ int32_t encoder_get_speed(const Encoder_t *enc)
 
     return (int32_t)speed;
 }
+
+
+
+
+

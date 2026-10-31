@@ -77,10 +77,10 @@ void Motor_Init(void)
     MotorSetSpeed3(0);
     MotorSetSpeed4(0);
 
-    motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin, 0, 1);
-    motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin, 0,  1);
-    motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin, 0,  1);
-    motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin, 0, -1);
+    motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin, 0, motor1_direction);
+    motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin, 0, motor2_direction);
+    motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin, 0, motor3_direction);
+    motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin, 0, motor4_direction);
 
     PID_Init(&pid_motor1);//Çå¿Õpid
     PID_Init(&pid_motor2);
@@ -142,13 +142,13 @@ void motor_process(void)
     PID_Update(&pid_motor4);
 
     motor_set_speed(TIM_CHANNEL_4, motor1_Port, motor1_Pin,
-                    (int32_t)pid_motor1.output, 1);
+                    (int32_t)pid_motor1.output, motor1_direction);
     motor_set_speed(TIM_CHANNEL_3, motor2_Port, motor2_Pin,
-                    (int32_t)pid_motor2.output, 1);
+                    (int32_t)pid_motor2.output, motor2_direction);
     motor_set_speed(TIM_CHANNEL_2, motor3_Port, motor3_Pin,
-                    (int32_t)pid_motor3.output, 1);
+                    (int32_t)pid_motor3.output, motor3_direction);
     motor_set_speed(TIM_CHANNEL_1, motor4_Port, motor4_Pin,
-                    (int32_t)pid_motor4.output, -1);
+                    (int32_t)pid_motor4.output, motor4_direction);
 }
 
 

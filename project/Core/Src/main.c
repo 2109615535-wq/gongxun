@@ -29,6 +29,7 @@
 #include "hdz601.h"
 #include "encoder.h"
 #include "faraway.h"
+#include "decode_move.h"
 
 
 /* USER CODE END Includes */
@@ -90,17 +91,18 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-extern PID_t pid_motor2;
+extern PID_t pid_motor1;
 
 static void motor_oled_task(void)
 {
-    /* Clear all three rows so shorter values do not leave old digits behind. */
-    OLED_ClearArea(0, 0, 128, 48);
+    /* Clear all four rows so shorter values do not leave old digits behind. */
+    OLED_ClearArea(0, 0, 128, 64);
 
-    OLED_Printf2(0, 0, "Target:%ld", (long)pid_motor2.target);
-    OLED_Printf2(0, 16, "Output:%ld", (long)pid_motor2.output);
+    OLED_Printf2(0, 0, "Target:%ld", (long)pid_motor1.target);
+    OLED_Printf2(0, 16, "Output:%ld", (long)pid_motor1.output);
     OLED_Printf2(0, 32, "Speed:%ld",
-                 (long)encoder_get_speed(&encoder2));
+                 (long)encoder_get_speed(&encoder1));
+    OLED_Printf2(0, 48, "Y:%.2fcm", (double)y_body);
 }
 
 /* USER CODE END 0 */
@@ -150,7 +152,6 @@ int main(void)
 
     Motor_Init();
     encoder_init();
-    scheduler_add_task(motor_process, 20U, 2U);
 
     hdz601_init();
     scheduler_add_task(hdz601_process, 5U, 1U);
@@ -163,10 +164,15 @@ int main(void)
     MotorEnable2(1);
     MotorEnable3(1);
     MotorEnable4(1);
-    MotorSetSpeed1(500);
-    MotorSetSpeed2(500);
-    MotorSetSpeed3(500);
-    MotorSetSpeed4(500);
+    MotorSetSpeed1(50);
+    MotorSetSpeed2(50);
+    MotorSetSpeed3(50);
+    MotorSetSpeed4(50);
+
+    position_encoder_init();
+    scheduler_add_task(position_encoder, 20U, 2U);
+    scheduler_add_task(motor_process, 20U, 2U);
+
 
     if (!faraway_init()) {
         Error_Handler();

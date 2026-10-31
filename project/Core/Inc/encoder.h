@@ -6,11 +6,7 @@
 /* Motor 2 measured about 543170 encoder counts/s at PWM command 1000. */
 #define ENCODER_SPEED_AT_PWM1000 (543170L)
 
-/* Change a channel to -1 if forward motor motion gives negative counts. */
-#define ENCODER1_DIRECTION (-1)
-#define ENCODER2_DIRECTION (-1)
-#define ENCODER3_DIRECTION (-1)
-#define ENCODER4_DIRECTION (1)
+/* Feedback direction is derived from motorN_direction in motor.h. */
 
 /* Numbering follows the current motor PH/EN pins:
  * Motor 1: PC0/PE13, A=PD12, B=PD13, TIM4.

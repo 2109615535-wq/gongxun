@@ -421,6 +421,11 @@
               <FilePath>../Core/Src/servo.c</FilePath>
             </File>
             <File>
+              <FileName>decode_move.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/decode_move.c</FilePath>
+            </File>
+            <File>
               <FileName>encoder.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/encoder.c</FilePath>
