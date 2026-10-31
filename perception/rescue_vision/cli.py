@@ -105,7 +105,7 @@ def main(argv=None):
     command.add_argument("--port", required=True)
     command.add_argument("--duration", type=float, default=30)
     command.add_argument("--baudrate", type=int, choices=(115200, 921600), default=115200)
-    command = commands.add_parser("stm32-status", help="当前主控115200 UART5状态接收；仅可选发送GET")
+    command = commands.add_parser("stm32-status", help="115200 UART5四电机/旧单电机遥测接收；仅可选发送GET")
     command.add_argument("--port", required=True)
     command.add_argument("--duration", type=float, default=5)
     command.add_argument("--output", help="新的JSONL记录文件；省略则打印遥测")

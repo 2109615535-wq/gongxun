@@ -6,7 +6,10 @@ from pathlib import Path
 def load_config(path):
     path = Path(path).resolve()
     cfg = json.loads(path.read_text(encoding="utf-8"))
-    cfg.setdefault("serial_protocol", "motor2_debug_ascii")
+    cfg.setdefault("serial_protocol", "motor_debug_ascii")
+    # Keep old profiles readable without implying the current firmware controls only motor 2.
+    if cfg["serial_protocol"] == "motor2_debug_ascii":
+        cfg["serial_protocol"] = "motor_debug_ascii"
     cfg.setdefault("detector_backend", "reference")
     cfg.setdefault("detector_pixel_space", "undistorted")
     for key in ("model", "manifest", "calibration"):
@@ -23,7 +26,7 @@ def load_config(path):
             or not 0 < cfg["smoothing_alpha"] <= 1
             or not 0 < cfg["max_frame_age_ms"] <= 150
             or cfg["baudrate"] not in (115200, 921600) or not 0 < cfg["confidence"] < 1
-            or cfg.get("serial_protocol", "vision_v1") not in ("vision_v1", "motor2_debug_ascii")
+            or cfg["serial_protocol"] not in ("vision_v1", "motor_debug_ascii")
             or cfg["detector_backend"] not in ("reference", "existing_ultralytics_rknn")
             or cfg["detector_pixel_space"] not in ("raw", "undistorted")
             or ("cpu_threads" in cfg and (isinstance(cfg["cpu_threads"], bool)

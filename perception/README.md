@@ -1,8 +1,18 @@
-# 智能救援：香橙派C100感知交接包 v0.3
+# 智能救援：香橙派C100感知交接包 v0.3.1
 
-**GitHub版首次使用请先阅读[启动说明](START_HERE.md)**：包含仓库内模型和标定文件的相对路径启动命令。本次仅新增`perception/`目录，下面保留原实验与交接记录；历史机器路径和设备状态不能直接视为当前环境。
+**GitHub版首次使用请先阅读[启动说明](START_HERE.md)**：包含仓库内模型和标定文件的相对路径启动命令。当前改动仅限`perception/`，不修改`project/`主控。主控接入以[README_STM32.md](README_STM32.md)为准；早期实验与交接记录中的机器路径和设备状态不能直接视为当前环境。
 
 已复用原RKNN完成香橙派真机采图和推理核验。先阅读[第三版说明](HANDOFF_V3.md)；[第二版说明](HANDOFF_V2.md)保留为早期接口交接记录。新STM32主控源码保持只读。
+
+## 2026-10-31：适配最新主控遥测
+
+按仓库主控`d915341`核对UART5接口，`stm32-status`现在支持四电机`speed1/target1`到`speed4/target4`及`y_body`，并保留旧单电机格式兼容。速度值仍为±1000归一化值；`y_body`是主控里程计厘米量，不是目标前向距离或毫米值。
+
+JSONL记录附`telemetry_format`、`speed_unit`及四电机记录的`y_body_unit=cm`。命令应答单独统计，错误应答保留数量和最后一条文本；缺字段、布尔值、非有限值和越界速度不计为有效样本。
+
+调试配置统一命名为`motor_debug_ascii`，旧`motor2_debug_ascii`仍可读取并归一化。工具默认仅收，`--query`最多发一次`GET`；不发送`TARGET/PID/ENABLE/RUN`或视觉二进制帧。视觉v1的字节布局没有变化，也未新增主控视觉接收能力。
+
+本次完整主机套件119项通过，其中新增34项覆盖四电机格式、旧格式兼容、非法数值、拆包恢复及只读发送约束。另外只读提取当前主控的`faraway_report()`，在独立GCC夹具中生成实际JSON并由新解析器成功读取；未构建、修改或烧录主控工程，也未连接串口或电机。
 
 ## 2026-10-30：电脑端绿色物资测距
 
@@ -104,12 +114,12 @@ UART5 PC12 TX、PD2 RX，交叉接线、共地、3.3V TTL、115200/8N1；USART2�
 
 ```bash
 # 默认只收已有JSON遥测，不发送命令
-python -m rescue_vision stm32-status --port /dev/ttyUSB0 --duration 5 --output recordings/motor2_status_01.jsonl
-# 可选只发一次GET，不发TARGET/PID/ENABLE
+python -m rescue_vision stm32-status --port /dev/ttyUSB0 --duration 5 --output recordings/stm32_status_01.jsonl
+# 可选只发一次GET，不发TARGET/PID/ENABLE/RUN
 python -m rescue_vision stm32-status --port /dev/ttyUSB0 --duration 5 --query
 ```
 
-遥测target/output/speed是归一化值，不是mm/s。当前源码将电机2开机目标设为5，未实现UART5断线清零；本版不启动电机试验，也不把这个接口当成整车控制。
+当前遥测为`speed1/target1`到`speed4/target4`及`y_body`，兼容旧`target/output/speed/kp/ki/kd/enable`。速度和目标是归一化值，不是mm/s；`y_body`单位cm。监测不产生电机控制指令，也不依据`y_body`自动触发视觉动作。当前主控开机四电机目标为50，且有`y_body>=50`停车试验逻辑；是否使能、何时停车由主控现有代码决定，不能从遥测工具推断已具备视觉闭环或断线停车。
 
 ## 独立运行、回放与后续协议
 
@@ -120,7 +130,7 @@ python -m rescue_vision run --config config/vision.json --model artifacts/best.o
 python -m rescue_vision replay --config config/vision.json --model artifacts/best.onnx --manifest artifacts/model.json --video recordings/bench_01/raw.avi --output recordings/replay_01
 ```
 
-默认`serial_protocol=motor2_debug_ascii`，`run --serial`会在打开端口前拒绝发送二进制观测。电控以后实现视觉接收器、确认接线后，才能为对应端口使用`vision_v1`，双方使用相同波特率。改配置不能让现有固件自动支持新协议。
+默认`serial_protocol=motor_debug_ascii`（兼容旧名称`motor2_debug_ascii`），`run --serial`会在打开端口前拒绝发送二进制观测。电控以后实现视觉接收器、确认接线后，才能为对应端口使用`vision_v1`，双方使用相同波特率。改配置不能让现有固件自动支持新协议。
 
 详见`PROTOCOL.md`和`stm32/README.md`。运行记录包含JSONL时间戳、协议流，可选原图/叠框AVI。AVI固定15fps，精确时序以JSONL为准；软件延迟不包含曝光、相机内部缓冲和STM32执行。
 

@@ -96,7 +96,7 @@ class Recorder:
 
 def run(config, output, serial_port=None, show=False, video=False, duration=None):
     if serial_port and config.get("serial_protocol") != "vision_v1":
-        raise ValueError("Current UART5 is a motor-2 ASCII debug interface, not a visual observation receiver. "
+        raise ValueError("Current UART5 is a motor ASCII debug interface, not a visual observation receiver. "
                          "Use stm32-status for read-only status; omit --serial to record perception only.")
     if config.get("require_uvc"):
         from .board_detector import verify_uvc_device

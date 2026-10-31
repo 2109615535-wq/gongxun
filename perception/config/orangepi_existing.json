@@ -33,5 +33,5 @@
   ],
   "hazard_corridor_half_width_mm": 180,
   "baudrate": 115200,
-  "serial_protocol": "motor2_debug_ascii"
+  "serial_protocol": "motor_debug_ascii"
 }
