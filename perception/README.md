@@ -1,164 +1,261 @@
-# 智能救援：香橙派C100感知交接包 v0.3.2
+# 视觉→主控 v1 协议交接
 
-**GitHub版首次使用请先阅读[启动说明](START_HERE.md)**：包含仓库内模型和标定文件的相对路径启动命令。当前改动仅限`perception/`，不修改`project/`主控。主控接入以[README_STM32.md](README_STM32.md)为准；早期实验与交接记录中的机器路径和设备状态不能直接视为当前环境。
+本目录只保留观测协议、独立C接收与单普通物资接近参考模块，以及Python协议编解码工具。主控可据此开发接收、校验、坐标还原、超时处理和接近停车，不需要安装或运行视觉识别程序。
 
-已复用原RKNN完成香橙派真机采图和推理核验。先阅读[第三版说明](HANDOFF_V3.md)；[第二版说明](HANDOFF_V2.md)保留为早期接口交接记录。新STM32主控源码保持只读。
+相机采集、YOLO推理、权重、标定数据、串口运行器和部署工具已从本目录移除。本次不修改仓库的`project/`主控工程，不改变v1线上字节布局，也不表示实际固件已经接入视觉。
 
-## 2026-10-31：适配最新主控遥测
+## 文件与阅读顺序
 
-按仓库主控`d915341`核对UART5接口，`stm32-status`只解析四电机`speed1/target1`到`speed4/target4`及`y_body`，全部九个字段必须存在且合法；不再支持旧单电机格式。速度值仍为±1000归一化值；`y_body`是主控里程计厘米量，不是目标前向距离或毫米值。
+- [本文完整协议](#完整观测协议-v1)：字节布局、CRC、单位、类别、状态/标志、时序、坐标还原和合成HEX报文。
+- [stm32/rescue_vision.h](stm32/rescue_vision.h)：接收器、配置、观测、控制输出及公开C接口。
+- [stm32/rescue_vision.c](stm32/rescue_vision.c)：流式组帧、字段与CRC校验、重复图像防保活、危险阻断、300ms失效和接近停车参考实现。
+- [rescue_vision/types.py](rescue_vision/types.py)、[protocol.py](rescue_vision/protocol.py)、[__init__.py](rescue_vision/__init__.py)：只用于协议验证的Python类型与编解码，不含图像处理或串口发送。
+- [.gitignore](.gitignore)：排除本地缓存和实验输出。本文件是使用入口；Git版本共保留7个文件。
 
-JSONL记录附`telemetry_format`、`speed_unit`及四电机记录的`y_body_unit=cm`。命令应答单独统计，错误应答保留数量和最后一条文本；缺字段、布尔值、非有限值和越界速度不计为有效样本。
+## 完整观测协议 v1
 
-调试配置只接受`motor_debug_ascii`，旧名称`motor2_debug_ascii`已删除，使用它的配置需更新。工具默认仅收，`--query`最多发一次`GET`；不发送`TARGET/PID/ENABLE/RUN`或视觉二进制帧。视觉v1的字节布局没有变化，也未新增主控视觉接收能力。
+本文、[Python编解码器](rescue_vision/protocol.py)及[C接收器](stm32/rescue_vision.c)共同构成v1交接基线。仅精简交付文件，原帧格式、CRC、字段含义和C参考策略保持不变。主控接入步骤见本文“主控接入”部分。
 
-v0.3.2完整主机套件114项通过，覆盖四电机格式、拒绝旧数据/旧配置、非法数值、拆包恢复及只读发送约束。旧单电机解析函数和兼容分支已删除。此前还只读提取当前主控的`faraway_report()`，在独立GCC夹具中生成实际JSON并通过解析；未构建、修改或烧录主控工程，也未连接串口或电机。
+### 1. 链路和边界
 
-## 2026-10-30：电脑端绿色物资测距
+- 单向视觉TX→主控RX，3.3V TTL、交叉接线并共地，8数据位、无校验、1停止位。联调115200bps；协议也允许921600，但双方必须同步配置，波特率不在帧内传输。
+- 二进制帧采用小端；有符号整数是二进制补码，不按换行符分包，不使用`strlen`或直接强转C结构体。
+- 视觉主动发送新观测，不需要主控请求、ACK或重传；正常空场、故障、目标丢失也要发送无效观测，不能只静默停止。
+- 主控到视觉的任务、应答、稳定目标ID和完整转运任务协议尚未定义。区域与姿态预留不能视为已实现功能；改变布局或既有语义须升级版本。
 
-已接入本台C100实测内参与离车地面映射。运行[一键启动入口](tools/run_green_distance.cmd)，或在已有yolo环境运行[检测脚本](tools/detect_green_distance.py)，详见[使用说明](GREEN_DISTANCE.md)。
+### 2. 外层帧
 
-独立6点检查最大横向/前向误差为6.6/14.0mm；绿色物资单张照片检查误差为1.2/19.9mm。脚本15项测试通过；近处新增橙色NEAR_ESTIMATE模式，默认前向0～150mm、横向在原实测范围内输出未验证估算，已用运行日志回放核对。此前电脑连接C100短时5秒处理124帧，其中2帧确认、122帧正常输出。以上为当前离车实验，不能代替板端实时性能或实车验收；config/calibration.json仍保持未验证。
-
-## 原香橙派与主控核验记录
-
-- 用户已完成香橙派Linux生成RKNN及USB相机YOLO检测，相机确认为WHEELTEC C100。
-- `E:/智能救援/STM32主控项目/project`为STM32F407VETx工程。UART5是115200单电机ASCII调试接口，尚无视觉接收和整车速度接口。本次不修改、编译或烧录它。
-- 厂商资料提供参考内参和标定教程，不等于本车完整标定。`config/calibration.json`保持未验证。
-- 用户已确认相机正向固定，尚未重新采图核验；实车标定计划待定。下述倒置画面及性能数据保留为此前测试记录。
-- 已通过SSH核对当前地址`10.61.67.250`。Python环境、原项目、模型、运行库和C100设备路径已确认，见第三版。
-
-## 已核验的香橙派配置
-
-从解压包根目录执行，不改原项目，不发送UART：
-
-```bash
-/home/orangepi/venvs/yolo-rknn-board/bin/python -m rescue_vision run --config config/orangepi_existing.json --record-video --duration 10 --output recordings/c100_01
+```text
+AA 55 | version:u8 | sequence:u8 | payload_length:u16 | payload | CRC16:u16
 ```
 
-配置沿用`/home/orangepi/yolo_deploy`的模型和运行库，使用C100的稳定UVC节点，MJPG/640×480/30fps；不会把HDMI `/dev/video0`或元数据节点当作图像输入。
+所有偏移从0开始：
 
-本次短时实测处理约12.7～12.9fps、采集后到记录延迟P95约137～145ms，尚未达到15Hz目标。参考照片四类目标识别通过，随后绿色实物片段的90帧均出现普通物资类别。画面倒置且有额外边缘框，本车标定未验证，运动有效标志始终为0；这些类别检出记录不代表目标准确率、米制定位或整车验收。
+- 整帧偏移0～1：固定帧头`AA 55`。
+- 偏移2：`version`，必须为1。
+- 偏移3：`sequence`，每次发送递增，255后回0；仅供诊断，不能代替图像新鲜性。
+- 偏移4～5：`payload_length`，仅计payload字节数，范围8～184。
+- 偏移6开始是payload；最后2字节是CRC，低字节先发。
 
-## 安装与测试
-
-命令从本目录执行。香橙派优先用现有检测脚本的Python解释器，不自动升级已有可用环境：
-
-```bash
-python -m pip install -e . --no-deps
-python -m rescue_vision --help
+```text
+payload_length = 8 + 12 * target_num + 8 * zone_num
+total_length = payload_length + 8
 ```
 
-依赖NumPy、OpenCV和pyserial；主机测试另需pytest和GCC。现有检测输出接入接口不导入RKNN、Torch或ONNX Runtime。Windows开发环境：
+空观测16字节，一个目标28字节，最多192字节。115200/8N1发送最大帧约16.7ms；30Hz最大帧约占链路50%。观测频率不由协议保证。
 
-```powershell
-& 'C:\Users\LENOVO\miniconda3\envs\yolo\python.exe' -m pytest -q
+### 3. payload固定头：8字节
+
+以下偏移相对于payload，整帧偏移需加6：
+
+- 0～3：`tick_ms:u32`。图像观测为视觉读取该帧完成时的本地单调毫秒时刻，故障心跳为发送侧当前时刻，允许32位回绕。
+- 4：`frame_flags:u8`。
+- 5：`target_num:u8`，0～12。
+- 6：`zone_num:u8`，0～4，当前发送端固定0。
+- 7：`status:u8`，0～7，定义见下文。
+
+### 4. 目标项：每项12字节
+
+目标数组从整帧偏移14开始。以下偏移相对于单个目标：
+
+- 0：`type:u8`，1普通物资、2核心物资、3伤员、4危险目标、255未知。
+- 1：`confidence:u8`，0～100，不是0～1浮点数。
+- 2～3：`angle_cdeg:i16`，单位0.01°，范围-18000～18000，向右为正。
+- 4～5：`distance_mm:u16`，底盘原点到贴地点的地面径向距离；0表示无效，非0还须检查有效标志。
+- 6～7：`width_px:u16`，检测所在图像分辨率下的框宽。
+- 8～9：`height_px:u16`，相同分辨率下的框高。
+- 10：`posture:u8`，当前发送0，表示未知，不据此驱动机构。
+- 11：`target_flags:u8`。
+
+宽高只供诊断，不是固定补边640坐标，主控不据此重新猜测物理距离。协议类别不等于YOLO原始class_id。
+
+目标后面是`zone_num`个8字节预留项，当前只校验数量和总长度并跳过，不定义其内部字段，不用于运动。
+
+### 5. CRC与结构校验
+
+CRC16/CCITT-FALSE：poly=`0x1021`、init=`0xFFFF`、不反射、xorout=`0`。从整帧偏移2的version开始，计算到payload结束，不含帧头和CRC自身。CRC按小端发送；标准串`123456789`结果为`0x29B1`。
+
+接收器校验帧头、版本、payload长度、实际总长度、CRC、目标/区域数量、数量对应的精确长度、状态、目标类别、置信度和角度范围。不以结构体对齐或`sizeof(RV_Target)`决定线上长度。
+
+CRC、格式和字段错误帧不发布为新观测，也不刷新有效期。单个坏CRC不会立即撤销上一有效观测；上一观测仍按本地300ms有效期失效。与无效观测主动撤销的语义不同。
+
+### 6. 状态与标志
+
+`status`：
+
+- 0 `OK`：当前普通目标流程已确认，仍须同时检查有效标志及危险条件。
+- 1 `NO_TARGET`：没有当前可用普通目标，不保证画面完全没有其他类别。
+- 2 `CAMERA_FAULT`：相机故障。
+- 3 `CALIBRATION_INVALID`：标定无效。
+- 4 `TARGET_INVALID`：目标/位置不可信，或连续帧确认尚未完成。
+- 5 `TARGET_LOST`：此前确认的目标丢失。
+- 6 `STALE`：图像、推理结果过期或未及时取得新结果。
+- 7 `INFERENCE_FAULT`：推理异常。
+
+`frame_flags`按位检查：
+
+- bit0 / `0x01`：视觉观测有效。
+- bit1 / `0x02`：标定已验证。
+- bit4 / `0x10`：接近通道被危险或未知目标阻断。
+- bit2安全区可见、bit3近场沿用预留，当前发送端不置位，接收器不据此控制运动；其余位未定义。
+
+`target_flags`：
+
+- bit0 / `0x01`：危险。
+- bit2 / `0x04`：遮挡或截断。
+- bit4 / `0x10`：连续帧确认。
+- bit5 / `0x20`：位置有效。
+- bit1姿态可信、bit3进入铲入区尚未实现，主控不可依赖；其余位未定义。
+
+`0x10`在帧标志中是阻断，在目标标志中是连续确认。置信度高不能替代标定、连续确认和位置有效性。
+
+### 7. 坐标还原和安装约定
+
+测量点是**可见贴地边缘中点**，不是物资几何中心。位置相对于约定的底盘原点，x向前、y向左，方位向右为正：
+
+```text
+angle_rad = angle_cdeg * pi / 18000
+x_forward_mm = distance_mm * cos(angle_rad)
+y_left_mm = -distance_mm * sin(angle_rad)
+
+gap_mm = x_forward_mm - bumper_forward_mm
+lateral_mm = y_left_mm - collection_center_left_mm
 ```
 
-## 复用当前检测程序
+正前方角度为0；右侧目标角度为正，还原的`y_left_mm`为负。`gap_mm`是车头前缘到贴地点的前向间隙，`lateral_mm`是贴地点相对机构中心线的横向偏移。
 
-参考`examples/existing_detector_hook.py`，保留已有模型、采集、预处理和后处理：
+双方共同固定底盘原点，实测`bumper_forward_mm`和`collection_center_left_mm`，并使用一致数值。后者向左为正，可为负。示例中的120mm等参数只是合成数据，不代表实车安装值。
+
+相机内参、畸变、地面映射与外参留在视觉侧，不随每帧发送。视觉须先完成实验原点、朝向到约定底盘坐标的变换；仅当原点相同且前向一致时，实验`X right / Y forward`才可直接转为`x=Y, y=-X`。编码关系为：
+
+```text
+distance_mm = round(hypot(x, y))
+angle_cdeg = round(degrees(atan2(-y, x)) * 100)
+```
+
+非有限值、越出u16距离/角度编码范围或实测有效区域的位置不得截断成有效观测。安装关系或地面映射未验证时，应清除观测/标定有效位并发送`status=3`。可以使用合成报文开发通信，不能把模拟有效标志当成实车标定通过。
+
+这是当前车体相对位置，单位mm，不能直接当成主控里程计的绝对位置或厘米量。
+
+### 8. 运动准入和危险阻断
+
+参考C模块仅在以下条件全部满足时允许计算接近输出：
+
+- 帧bit0和bit1均置位，`status=0`且无帧阻断。
+- 恰有一个普通物资，置信度≥35，目标bit4/bit5均置位，非危险、非遮挡，距离非0。
+- 安装参数有限，车头前向偏移非负，观测未超时。
+- 无未知目标；危险目标位置不可信时直接阻断。危险目标位置可信时，以同样坐标还原，处于车头前方`0 < gap <= 1400mm`且机构中心线左右180mm内则阻断。
+
+协议可携带12目标不等于已实现12目标跟踪、目标锁定或全部类别转运。核心/伤员项不能自动作为普通物资接近策略的执行目标。
+
+### 9. 时序、超时和接收恢复
+
+- 使用STM32本地收到字节的毫秒时刻；一帧接收时刻为末字节时刻，不把视觉tick直接减STM32 tick。
+- 到本地接收时刻的间隔**达到300ms**时撤销运动，未收到字节时仍需周期调用`RV_Step`。
+- 同一图像tick的重复有效帧不刷新有效期，不增加到位确认；改变sequence不能绕过。超过300ms后，同一tick仍拒绝。
+- 在距上次接受的源时间基准接收间隔短于300ms时，源tick倒退会拒绝；间隔达到300ms后，不同tick可重新建立源时间基准，兼容视觉重启。源时间和主控时间均按u32回绕处理。
+- 故障心跳撤销当前有效观测，但不推进最后接受的有效图像源时间，避免拒绝仍在处理中的较早图像。故障/空场/目标丢失不等待300ms。
+- 残帧相邻字节间隔**超过30ms**会重置残帧；这不是整帧必须在30ms内完成的规则。噪声、坏头、坏版本/长度或CRC错误后继续搜索下一帧。
+- 接收环为512槽，保留一槽区分满/空。溢出时下一次`RV_Step`清除接收队列和观测并输出零速度。115200满速输入约44ms可填满511槽，应避免控制任务长期阻塞。
+
+“立即撤销”指下一次控制任务执行。300ms是软件命令有效期，调度、驱动执行、制动与惯性仍会影响物理停车时间。
+
+### 10. 单普通物资接近参考逻辑
+
+这是C模块的主控参考策略，不是额外线上命令：
+
+- 状态为`RV_WAIT / RV_ALIGN / RV_APPROACH / RV_STOPPED`，输出同时携带原因码。
+- 车头间隙小于170mm时输出0，不自动倒车。
+- 间隙170～230mm且机构横向误差≤20mm时输出0。三个不同且被控制任务消费的新图像均到位，进入`RV_STOPPED`锁存；重复图像或同一快照的重复控制周期不计数。到位条件中断时计数清零。
+- 其他情况下，转向误差为`atan2(-lateral_mm, x_forward_mm)`，顺时针角速度为其1.5倍，限幅±0.4rad/s。
+- 误差绝对值大于5°、间隙≤230mm或`allow_forward=0`时只输出转向。
+- 允许前进且已对准时，前向速度为`0.6 * (gap_mm - 200)`，限幅100mm/s。
+- 到位锁存须由控制上下文显式调用`RV_ResetTrial`开始新试验，仍等待新图像。不要让其他控制来源覆盖零输出。
+
+C接口、静态对象、HAL回调和底盘速度单位适配见本文“主控接入”和“速度适配与参考接近策略”部分。
+
+### 11. 合成HEX样例
+
+以下只供电机输出隔离后的编解码测试。串口助手选择HEX发送，不附加文本换行，不持续重发同一tick维持运动。
+
+正常观测：sequence=0、tick=1000、帧flags=3、status=0；一个普通物资，置信度90、角度0、距离500mm、宽高40px、姿态0、目标flags=48，共28字节：
+
+```text
+AA 55 01 00 14 00 E8 03 00 00 03 01 00 00 01 5A 00 00 F4 01 28 00 28 00 00 30 03 1C
+```
+
+正常空场：sequence=1、tick=1080、flags=2、status=1，无目标，共16字节：
+
+```text
+AA 55 01 01 08 00 38 04 00 00 02 00 00 01 07 71
+```
+
+标定无效：sequence=2、tick=1160、flags=0、status=3，无目标，共16字节：
+
+```text
+AA 55 01 02 08 00 88 04 00 00 00 00 00 03 8A 7F
+```
+
+需要不同tick时，在`perception/`目录执行以下Python代码；它只打印HEX，不打开串口：
 
 ```python
-import time
-from rescue_vision.session import DetectionSession, detections_from_arrays
+from rescue_vision.protocol import encode
+from rescue_vision.types import Observation, Status, Target
 
-session = DetectionSession.from_config("config/vision.json")
-# 在原有read成功后、推理之前记录：
-captured = time.monotonic()
-# 原有推理和后处理完成后，传入实际结果：
-detections = detections_from_arrays(boxes_xyxy, scores, class_ids, actual_class_names)
-observation = session.observe(original_bgr_frame, detections, captured, pixel_space="raw")
+for seq, tick in enumerate((1000, 1080, 1160)):
+    target = Target(1, 90, 0, 500, 40, 40, 0, 48)
+    frame = encode(Observation(tick, 3, Status.OK, (target,)), seq)
+    print(frame.hex(" ").upper())
 ```
 
-数组来自原程序实际后处理，框必须还原到原图，不能传补边640坐标。原图与标定尺寸一致；原图用`raw`，已在相同K坐标系去畸变的图用`undistorted`。接口只返回观测，不打开硬件或发送电机命令。
+500mm样例不保证到位。测试到位需按实测车头偏移+200mm构造距离，并满足角度0和机构居中条件；例如偏移120mm时，对应距离320mm。
 
-现有RKNN采用Ultralytics导出布局，由板端现有后端解码，不用本包参考模型的九输出解码器。新配置已读取实际10类名称表；更新模型后须重新核对校验值与类别表。
+主控接入和硬件验收步骤见本文相应部分。合成报文使用人工观测，不证明视觉识别准确率、实际标定或整车停车效果。
 
-## C100标定
+## 主控接入
 
-需要本台C100实测K/D、安装偏移、地面映射和独立验证。`config/wheeltec_reference.json`仅供参考，导入器会拒绝把它当成实测标定。
+1. 将`stm32/rescue_vision.c`加入构建目标，增加头文件搜索路径并链接数学函数。模块仅使用标准C和`stdint.h`、`string.h`、`math.h`，不依赖HAL、电机驱动或动态内存。约5KB的`RV_Receiver`建议静态分配。
+2. 双方确认视觉UART、3.3V TTL接线、底盘原点与实测安装偏移。联调使用115200/8N1，TX/RX交叉、共地。当前UART5的ASCII电机调试及JSON遥测不等于支持v1二进制观测。
+3. 在开启接收中断前调用`RV_Init`。在已有UART回调的视觉分支调用`RV_OnByte(receiver, byte, HAL_GetTick())`，随后重新启动接收并检查返回值；复用现有回调，不新建第二个同名全局HAL回调。只允许一个字节生产者，UART错误恢复由集成代码处理。
+4. 在单个控制上下文每10ms调用`RV_Step(receiver, HAL_GetTick())`，即使无数据也必须调用。ISR只投递字节，不解析或驱动电机；同一控制上下文可读取观测及错误计数。
+5. 纯接收阶段只显示结果并禁止驱动输出。完成单位、方向及停车验收后，由唯一运动命令出口执行返回速度，**包括零速度**；明确与开机试验、ASCII调试及其他任务的仲裁，避免旧命令覆盖停车。
+6. `RV_STOPPED`为到位停车锁存。新试验在控制上下文显式调用`RV_ResetTrial`，仍需等待新图像，不能每周期自动复位。
 
-已有本台相机的OpenCV YAML/XML或JSON时：
+公开接口以头文件为准：
 
-```bash
-python -m rescue_vision import-intrinsics --input camera_params.yml --image-size 640 480 --output artifacts/intrinsics.json
+```c
+void RV_Init(RV_Receiver *receiver, RV_Config config);
+void RV_OnByte(RV_Receiver *receiver, uint8_t byte, uint32_t received_ms);
+RV_Command RV_Step(RV_Receiver *receiver, uint32_t now_ms);
+void RV_ResetTrial(RV_Receiver *receiver);
+uint16_t RV_Crc16(const uint8_t *data, uint16_t length);
 ```
 
-必须有K和畸变；分辨率缺失时提供真实`--image-size`，存在时检查一致，不自动缩放或补零。导入后仍为`validated=false`。
+`RV_Config`中的`bumper_forward_mm`和`collection_center_left_mm`必须与视觉标定所用安装值一致。`allow_forward=0`只禁止前进，仍可能输出转向请求，不等于禁止全部运动。
 
-尚未实测时，用提供的A4板，内角9×6、名义格长25mm，打印后尺量确认：
+## 速度适配与参考接近策略
 
-```bash
-python -m rescue_vision capture --camera /dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index0 --width 640 --height 480 --count 25 --interval 2 --show --output recordings/chessboard_01
-python -m rescue_vision intrinsics --images recordings/chessboard_01 --pattern 9 6 --square-mm 25 --output artifacts/intrinsics.json
-python -m rescue_vision undistort --calibration artifacts/intrinsics.json --image 地面标记原图.png --output artifacts/ground_undistorted.png
+输出`forward_mm_s`是前向速度，最大100mm/s；`clockwise_rad_s`是顺时针角速度，幅值最大0.4rad/s。偏角大于5°时先转向；车头间隙200±30mm、机构横向误差±20mm，三个不同且被控制任务消费的新图像满足后锁存停车。过近不自动倒车。详见本文完整协议的参考策略。
+
+输出不是PWM，也不是`MotorSetSpeed1..4`的PID目标。先通过真实底盘运动学得到各轮线速度，再按实测轮径、有效每轮编码器计数和归一化基准换算：
+
+```text
+raw_counts_s = wheel_mm_s * effective_counts_per_wheel_rev / wheel_circumference_mm
+normalized_target = raw_counts_s * 1000 / ENCODER_SPEED_AT_PWM1000
 ```
 
-至少12张有效图、RMS≤0.7px。参数25必须匹配尺量；其他采集分辨率应同步改命令，不能直接套640×480参考参数。
+还须验证轮序、方向、限幅和转弯符号；不能把100mm/s直接写成电机目标100。视觉坐标是当前车体相对坐标、单位mm，不能直接当作主控里程计的绝对坐标或厘米数值。
 
-在去畸变地面图上按`config/ground_points.example.json`格式填写至少6点。底盘原点固定，x向前、y向左、单位mm：
+## 合成报文联调
 
-```bash
-python -m rescue_vision ground --calibration artifacts/intrinsics.json --points 地面实测点.json --output artifacts/ground_unvalidated.json
-python -m rescue_vision validate-ground --calibration artifacts/ground_unvalidated.json --points 独立验证点.json --output config/calibration.json
-```
+本文完整协议给出可供串口助手HEX发送的合成报文，以及用Python生成不同tick报文的示例。Python工具只依赖Python 3.10及以上的标准库，不打开串口。正常样例带有效标志，仅用于隔离的接收测试；示例中的120mm等安装偏移不是实车测量值。
 
-验证点不能复用拟合点；至少6点，停车区域至少2点，车头前≥1m点至少1点；前向误差≤30mm、横向≤20mm。有效区域覆盖车头前200±30mm、横向±20mm。示例坐标不是本车参数。
+本交付不包含自动化测试脚本或C测试夹具。接收、校验、坐标、超时和接近行为须在主控集成时按协议验收。
 
-实测`bumper_forward_mm`、`collection_center_left_mm`并与电控保持一致。车体遮挡、减速带上俯仰变化等工况不属于当前平地映射的有效范围。
+## 硬件验收与范围
 
-## 当前主控状态读取
+先在输出隔离条件下验收正常/空场/故障帧、拆粘包、坏CRC、字段错误、左右坐标符号及重复tick。随后验证完全断流、危险目标及无效观测能撤销命令，并实测调度、驱动执行与机械停车延迟。
 
-UART5 PC12 TX、PD2 RX，交叉接线、共地、3.3V TTL、115200/8N1；USART2是IMU口，不复用。
+300ms是软件命令有效期，不能视为车辆物理停止时间。合成报文核对也不能代替ARM编译、UART中断、实际标定和实车停车验收。
 
-```bash
-# 默认只收已有JSON遥测，不发送命令
-python -m rescue_vision stm32-status --port /dev/ttyUSB0 --duration 5 --output recordings/stm32_status_01.jsonl
-# 可选只发一次GET，不发TARGET/PID/ENABLE/RUN
-python -m rescue_vision stm32-status --port /dev/ttyUSB0 --duration 5 --query
-```
-
-当前遥测只接受`speed1/target1`到`speed4/target4`及`y_body`；旧单电机数据计为无效行，不写入有效遥测记录。速度和目标是归一化值，不是mm/s；`y_body`单位cm。监测不产生电机控制指令，也不依据`y_body`自动触发视觉动作。当前主控开机四电机目标为50，且有`y_body>=50`停车试验逻辑；是否使能、何时停车由主控现有代码决定，不能从遥测工具推断已具备视觉闭环或断线停车。
-
-## 独立运行、回放与后续协议
-
-只有模型与清单布局匹配时才使用内置检测器。本地ONNX检查示例：
-
-```bash
-python -m rescue_vision run --config config/vision.json --model artifacts/best.onnx --manifest artifacts/model.json --show --record-video --output recordings/bench_01
-python -m rescue_vision replay --config config/vision.json --model artifacts/best.onnx --manifest artifacts/model.json --video recordings/bench_01/raw.avi --output recordings/replay_01
-```
-
-默认`serial_protocol=motor_debug_ascii`，`run --serial`会在打开端口前拒绝发送二进制观测。电控以后实现视觉接收器、确认接线后，才能为对应端口使用`vision_v1`，双方使用相同波特率。改配置不能让现有固件自动支持新协议。
-
-详见`PROTOCOL.md`和`stm32/README.md`。运行记录包含JSONL时间戳、协议流，可选原图/叠框AVI。AVI固定15fps，精确时序以JSONL为准；软件延迟不包含曝光、相机内部缓冲和STM32执行。
-
-```bash
-python -m rescue_vision report --input recordings/trial_01/observations.jsonl --output artifacts/performance.json
-python -m rescue_vision trial-report --input 实车测试.csv --output artifacts/trials.json
-```
-
-接通后再验收≥15Hz有效观测、软件延迟P95≤150ms、30次实车接近≥90%满足停车距离和横向误差，以及遮挡、相机/串口断线和危险目标停车。未做实车测试时不预填通过记录。
-
-## 板端只读信息采集
-
-用现有检测程序的Python环境执行，替换为实际脚本、模型和设备路径：
-
-```bash
-python tools/inspect_orangepi.py --script /实际目录/detect.py --model /实际目录/best.rknn --camera /dev/video0 --output artifacts/orangepi_inspection.json
-```
-
-工具只查询版本、文件SHA256、设备节点及V4L2格式/控制项，不运行模型、不启动视频流、不发串口、不修改相机参数。它不替代真实帧率测试。
-
-## 保留的转换工具
-
-已有RKNN检测不必重做下列步骤，仅在重新导出、回归比较时使用：
-
-```bash
-python -m rescue_vision export --weights ../smart-rescue-sim/gazebo/weights/best.pt --output artifacts
-python -m rescue_vision convert-rknn --onnx artifacts/best.onnx --manifest artifacts/model.json --output artifacts/best.rknn
-python -m rescue_vision compare --reference ../smart-rescue-sim/gazebo/weights/best.pt --candidate artifacts/best.onnx --manifest artifacts/model.json --images 实拍测试图目录 --output artifacts/compare_onnx.json
-```
-
-RKNN转换需兼容Linux RKNN-Toolkit2，默认不量化；INT8另需实拍校准图。九输出、RGB归一化、补边114和CPU解码必须配套。官方依据：[瑞芯微YOLO11示例](https://github.com/airockchip/rknn_model_zoo/tree/main/examples/yolo11)、[适配检测头](https://github.com/airockchip/ultralytics_yolo11/blob/main/ultralytics/nn/modules/head.py)。
+v1只定义视觉→主控观测；反向任务命令、ACK、目标锁定ID、全场定位、安全区导航和完整转运流程尚未定义。新增布局或改变既有字段含义时须升级版本并同步双方，不把预留字段当成已实现能力。

@@ -1,3 +1,1 @@
-"""Real-camera perception; independent of Gazebo and the chassis firmware."""
-
-__version__ = "0.3.2"
+"""视觉→主控v1协议类型与编解码；不包含图像处理或硬件运行器。"""

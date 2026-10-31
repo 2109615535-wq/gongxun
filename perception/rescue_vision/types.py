@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 
 
@@ -26,16 +26,6 @@ class TargetFlag(IntFlag):
     POSITION_VALID = 32
 
 
-TARGET_TYPES = {"normal_material": 1, "core_material": 2, "casualty": 3, "hazard": 4}
-
-
-@dataclass(frozen=True)
-class Detection:
-    name: str
-    confidence: float
-    box: tuple[float, float, float, float]
-
-
 @dataclass(frozen=True)
 class Target:
     kind: int
@@ -54,4 +44,3 @@ class Observation:
     flags: int
     status: Status
     targets: tuple[Target, ...] = ()
-    diagnostics: dict = field(default_factory=dict, compare=False)
