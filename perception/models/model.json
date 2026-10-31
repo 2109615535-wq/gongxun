@@ -1,0 +1,94 @@
+{
+  "layout": "rockchip_yolo11_9_outputs",
+  "input_size": 640,
+  "names": [
+    "normal_material",
+    "core_material",
+    "casualty",
+    "hazard",
+    "gripper",
+    "red_material_zone",
+    "blue_material_zone",
+    "red_casualty_zone",
+    "blue_casualty_zone",
+    "gripper_closed"
+  ],
+  "weights_sha256": "ab67fffaad0bbdac0f915941a328a310d55bc5a45fd5bc60f4815bbd33146d89",
+  "onnx_sha256": "555a69184e5982c1d4acdb8d84a36f49ebffa9b4b83828012db51ddbe5ff79dd",
+  "ultralytics_version": "8.3.163",
+  "opset": 12,
+  "output_names": [
+    "box_dfl_8",
+    "class_probability_8",
+    "score_sum_8",
+    "box_dfl_16",
+    "class_probability_16",
+    "score_sum_16",
+    "box_dfl_32",
+    "class_probability_32",
+    "score_sum_32"
+  ],
+  "output_shapes": [
+    [
+      1,
+      64,
+      80,
+      80
+    ],
+    [
+      1,
+      10,
+      80,
+      80
+    ],
+    [
+      1,
+      1,
+      80,
+      80
+    ],
+    [
+      1,
+      64,
+      40,
+      40
+    ],
+    [
+      1,
+      10,
+      40,
+      40
+    ],
+    [
+      1,
+      1,
+      40,
+      40
+    ],
+    [
+      1,
+      64,
+      20,
+      20
+    ],
+    [
+      1,
+      10,
+      20,
+      20
+    ],
+    [
+      1,
+      1,
+      20,
+      20
+    ]
+  ],
+  "pad_rgb": [
+    114,
+    114,
+    114
+  ],
+  "input_rgb": true,
+  "export_reference": "https://github.com/airockchip/ultralytics_yolo11/blob/main/ultralytics/nn/modules/head.py"
+}

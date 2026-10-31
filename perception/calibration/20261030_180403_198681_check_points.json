@@ -1,0 +1,112 @@
+{
+  "image_size": [
+    640,
+    480
+  ],
+  "pixel_space": "undistorted_same_K",
+  "image_source": "E:\\智能救援\\perception\\artifacts\\c100_captures\\20261030_175838_996029_640x480_undistorted.png",
+  "image_sha256": "781309528104179613e52e796c18b67155ac30a054cfa6920ab74a99faf7613b",
+  "intrinsic_sha256": "f3447fd977871ed5850b0ac40b1b733e87d7595572f45912d18715e814a7a065",
+  "bumper_forward_mm": 0,
+  "collection_center_left_mm": 0,
+  "forward_range_mm": [
+    200.0,
+    700.0
+  ],
+  "points": [
+    {
+      "pixel": [
+        214.25,
+        291.25
+      ],
+      "ground_mm": [
+        200.0,
+        105.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        200.0
+      ]
+    },
+    {
+      "pixel": [
+        361.75,
+        290.25
+      ],
+      "ground_mm": [
+        200.0,
+        -95.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        200.0
+      ]
+    },
+    {
+      "pixel": [
+        252.75,
+        220.75
+      ],
+      "ground_mm": [
+        500.0,
+        105.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        500.0
+      ]
+    },
+    {
+      "pixel": [
+        339.75,
+        221.25
+      ],
+      "ground_mm": [
+        500.0,
+        -95.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        500.0
+      ]
+    },
+    {
+      "pixel": [
+        265.75,
+        198.75
+      ],
+      "ground_mm": [
+        700.0,
+        105.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        700.0
+      ]
+    },
+    {
+      "pixel": [
+        334.25,
+        199.25
+      ],
+      "ground_mm": [
+        700.0,
+        -95.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        700.0
+      ]
+    }
+  ],
+  "user_grid": {
+    "center_x_mm": -5.0,
+    "side_mm": 100.0,
+    "forward_mm": [
+      200.0,
+      500.0,
+      700.0
+    ]
+  },
+  "note": "独立检查点，不用于重新拟合映射；用户x向右/y向前。"
+}

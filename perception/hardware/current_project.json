@@ -1,0 +1,134 @@
+{
+  "review_date": "2026-10-26",
+  "stm32_source": "E:/智能救援/STM32主控项目/project",
+  "source_policy": "read_only",
+  "mcu": "STM32F407VETx",
+  "source_flash_match_verified": false,
+  "motor_control_period_ms": 20,
+  "encoder_raw_unit": "counts_per_second",
+  "encoder_normalization_counts_per_second": 543170,
+  "motor_target_unit": "normalized_encoder_speed_minus1000_to1000",
+  "motor_target_is_mm_per_second": false,
+  "motor_header_comment_conflicts_with_implementation": true,
+  "body_velocity_api_present": false,
+  "visual_observation_receiver_present": false,
+  "debug_disconnect_stop_present": false,
+  "boot_motor2_target": 5,
+  "boot_motor2_enabled": true,
+  "ports": {
+    "UART5": {
+      "baudrate": 115200,
+      "tx": "PC12",
+      "rx": "PD2",
+      "use": "motor2_debug_ascii",
+      "status_interval_ms": 50
+    },
+    "USART2": {
+      "baudrate": 115200,
+      "tx": "PA2",
+      "rx": "PA3",
+      "use": "HDZ601_IMU"
+    },
+    "USART3": {
+      "baudrate": 115200,
+      "tx": "PC10",
+      "rx": "PC11",
+      "use": "initialized_no_application_receiver_found",
+      "physical_availability_verified": false
+    },
+    "USART6": {
+      "baudrate": 115200,
+      "tx": "PC6",
+      "rx": "PC7",
+      "use": "initialized_no_application_receiver_found",
+      "physical_availability_verified": false
+    }
+  },
+  "existing_debug_commands": [
+    "TARGET,<integer>",
+    "PID,<kp>,<ki>,<kd>",
+    "ENABLE,<0|1>",
+    "GET"
+  ],
+  "handoff_status_tool_allowed_command": "GET",
+  "imu_callback_owner": "Core/Src/hdz601.c",
+  "known_sources": [
+    "Core/Src/main.c",
+    "Core/Src/faraway.c",
+    "Core/Inc/faraway.h",
+    "Core/Src/motor.c",
+    "Core/Inc/motor.h",
+    "Core/Src/encoder.c",
+    "Core/Inc/encoder.h",
+    "Core/Src/hdz601.c",
+    "Core/Src/scheduler.c",
+    "Core/Src/stm32f4xx_hal_msp.c",
+    "MDK-ARM/project.uvprojx"
+  ],
+  "camera": {
+    "model": "WHEELTEC C100",
+    "model_evidence": "user_confirmed",
+    "supplied_directory_contains": "vendor_approximate_intrinsics_and_calibration_tutorial",
+    "measured_camera_intrinsics_found": false,
+    "vehicle_ground_calibration_found": false,
+    "capture_node": "/dev/video1",
+    "metadata_node": "/dev/video2",
+    "hdmi_node": "/dev/video0",
+    "stable_capture_node": "/dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index0",
+    "verified_capture_format": "MJPG 640x480 30fps",
+    "mount_orientation": "upright_fixed",
+    "orientation_evidence": "user_confirmed_2026-10-26",
+    "upright_mount_agent_verified": false,
+    "vehicle_calibration_schedule": "undecided"
+  },
+  "orangepi": {
+    "address": "10.61.67.250",
+    "username": "orangepi",
+    "rknn_generation": "artifact_hash_and_live_inference_verified",
+    "usb_yolo_detection": "live_adapter_verified",
+    "ssh_verification": "authenticated_verified",
+    "inference_script_path": "/home/orangepi/yolo_deploy/run_yolo.py",
+    "rknn_model_path": "/home/orangepi/yolo_deploy/best_rknn_model/best-rk3588.rknn",
+    "model_output_layout": "Ultralytics decoded output; historical shape (1,14,8400)",
+    "python": "/home/orangepi/venvs/yolo-rknn-board/bin/python",
+    "camera_server_path": "/home/orangepi/yolo_deploy/server.py",
+    "versions": {
+      "ultralytics": "8.3.163",
+      "rknn-toolkit-lite2": "2.3.2",
+      "numpy": "1.26.4",
+      "opencv-python": "4.11.0.86",
+      "torch": "2.4.0",
+      "torchvision": "0.19.0",
+      "Flask": "3.1.3",
+      "pyserial": null
+    },
+    "live_processing_hz": 12.874080253190472,
+    "software_latency_p95_ms": 137.1046372000137,
+    "realtime_15hz_target_met": false,
+    "green_target_check": {
+      "serial_opened": false,
+      "calibration_validated": false,
+      "completed": true,
+      "processed_frames": 90,
+      "normal_detection_frames": 90,
+      "longest_fresh_normal_run": 24,
+      "normal_detected": true,
+      "all_detected_names": [
+        "normal_material"
+      ],
+      "selected_frame_index": 40,
+      "motion_valid_frames": 0,
+      "original_files_unchanged": true,
+      "processing_hz": 12.736988165662337,
+      "software_latency_p95_ms": 145.45068855002225,
+      "inference_p95_ms": 88.88891805020192,
+      "normal_confidence_min": 0.356201171875,
+      "normal_confidence_max": 0.89794921875,
+      "interior_green_contact_candidate_frames": 90,
+      "frames_with_border_normal_boxes": 40,
+      "frames_with_multiple_normal_boxes": 40,
+      "scene_orientation": "camera upside down in this temporary setup",
+      "accuracy_claim": "Class presence only; not independently annotated precision/recall or position accuracy"
+    }
+  }
+}

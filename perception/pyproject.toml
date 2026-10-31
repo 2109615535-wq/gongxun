@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rescue-vision"
+version = "0.3.0"
+description = "RK3588 monocular rescue perception and STM32 observation link"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24,<3", "opencv-python>=4.8,<6", "pyserial>=3.5,<4"]
+
+[project.optional-dependencies]
+desktop = ["ultralytics>=8.3,<9", "onnx>=1.16,<2", "onnxruntime>=1.18,<2"]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+rescue-vision = "rescue_vision.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["rescue_vision*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

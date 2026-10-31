@@ -1,0 +1,7 @@
+artifacts/
+recordings/
+*.egg-info/
+.pytest_cache/
+__pycache__/
+build/
+.idea/

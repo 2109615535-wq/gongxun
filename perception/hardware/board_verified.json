@@ -1,0 +1,124 @@
+{
+  "address": "10.61.67.250",
+  "username": "orangepi",
+  "python": "/home/orangepi/venvs/yolo-rknn-board/bin/python",
+  "model_directory": "/home/orangepi/yolo_deploy/best_rknn_model",
+  "entry_script": "/home/orangepi/yolo_deploy/run_yolo.py",
+  "camera_server": "/home/orangepi/yolo_deploy/server.py",
+  "runtime_helper": "/home/orangepi/yolo_deploy/rknn_compat.py",
+  "versions": {
+    "ultralytics": "8.3.163",
+    "rknn-toolkit-lite2": "2.3.2",
+    "numpy": "1.26.4",
+    "opencv-python": "4.11.0.86",
+    "torch": "2.4.0",
+    "torchvision": "0.19.0",
+    "Flask": "3.1.3",
+    "pyserial": null
+  },
+  "video_nodes": {
+    "/dev/video1": {
+      "name": "HJ USB 2.0 Camera: HJ USB 2.0 C",
+      "index": "0"
+    },
+    "/dev/video2": {
+      "name": "HJ USB 2.0 Camera: HJ USB 2.0 C",
+      "index": "1"
+    },
+    "/dev/video0": {
+      "name": "stream_hdmirx",
+      "index": "0"
+    }
+  },
+  "stable_camera_nodes": [
+    "/dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index0",
+    "/dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index1"
+  ],
+  "serial_nodes": [],
+  "capture_metadata": "Format Video Capture:\n\tWidth/Height      : 640/480\n\tPixel Format      : 'MJPG' (Motion-JPEG)\n\tField             : None\n\tBytes per Line    : 0\n\tSize Image        : 614989\n\tColorspace        : sRGB\n\tTransfer Function : Default (maps to sRGB)\n\tYCbCr/HSV Encoding: Default (maps to ITU-R 601)\n\tQuantization      : Default (maps to Full Range)\n\tFlags             : \nStreaming Parameters Video Capture:\n\tCapabilities     : timeperframe\n\tFrames per second: 30.000 (30/1)\n\tRead buffers     : 0\n",
+  "baseline": {
+    "config": "orangepi_existing",
+    "serial_opened": false,
+    "calibration_validated": false,
+    "original_files_before": {
+      "/home/orangepi/yolo_deploy/run_yolo.py": "d32d312d9be68c490aba3997e8e0220f3d60bf4f6b5244406e7874b1a8856e3f",
+      "/home/orangepi/yolo_deploy/rknn_compat.py": "a936e4c88cadadace5e708886af4ccc0d9e5a0e79a09c17cf57d569d0dd4e861",
+      "/home/orangepi/yolo_deploy/server.py": "7cfa8a062d01cc459025d087684464a60367d5e2a03afdcf83062a742534eb28",
+      "/home/orangepi/yolo_deploy/best.pt": "ab67fffaad0bbdac0f915941a328a310d55bc5a45fd5bc60f4815bbd33146d89",
+      "/home/orangepi/yolo_deploy/best_rknn_model/best-rk3588.rknn": "88b23a951327afa4295136fe334f9c22953a37caefe6252ea7a71e6df560cfa8",
+      "/home/orangepi/yolo_deploy/best_rknn_model/metadata.yaml": "6b81aa40a8ed310715319510738b7c3545e0ec167dd790d2e2be095fcb77c9e9",
+      "/home/orangepi/yolo_deploy/runtime-2.3.2/librknnrt.so": "d31fc19c85b85f6091b2bd0f6af9d962d5264a4e410bfb536402ec92bac738e8"
+    },
+    "processed_frames": 94,
+    "processing_hz": 12.665855410002203,
+    "software_latency_p95_ms": 142.89744439981857,
+    "status_counts": {
+      "CALIBRATION_INVALID": 92,
+      "STALE": 2
+    },
+    "detection_names": [],
+    "motion_valid_frames": 0,
+    "completed": true,
+    "original_files_unchanged": true
+  },
+  "tuned": {
+    "serial_opened": false,
+    "calibration_validated": false,
+    "cpu_threads": 2,
+    "reference_image_names": [
+      "casualty",
+      "core_material",
+      "hazard",
+      "normal_material"
+    ],
+    "reference_image_detections": 4,
+    "torch_threads": 2,
+    "completed": true,
+    "processed_frames": 118,
+    "processing_hz": 12.874080253190472,
+    "software_latency_p95_ms": 137.1046372000137,
+    "inference_p95_ms": 87.96912634970793,
+    "status_counts": {
+      "CALIBRATION_INVALID": 117,
+      "STALE": 1
+    },
+    "live_detection_names": [
+      "blue_casualty_zone",
+      "blue_material_zone"
+    ],
+    "motion_valid_frames": 0,
+    "warmup": "existing reference image before live recording",
+    "original_files_unchanged": true
+  },
+  "model_output_shape_from_existing_log": [
+    1,
+    14,
+    8400
+  ],
+  "output_shape_evidence": "existing npu_check.log; actual adapter uses the same inspected RKNN through Ultralytics",
+  "green_target": {
+    "serial_opened": false,
+    "calibration_validated": false,
+    "completed": true,
+    "processed_frames": 90,
+    "normal_detection_frames": 90,
+    "longest_fresh_normal_run": 24,
+    "normal_detected": true,
+    "all_detected_names": [
+      "normal_material"
+    ],
+    "selected_frame_index": 40,
+    "motion_valid_frames": 0,
+    "original_files_unchanged": true,
+    "processing_hz": 12.736988165662337,
+    "software_latency_p95_ms": 145.45068855002225,
+    "inference_p95_ms": 88.88891805020192,
+    "normal_confidence_min": 0.356201171875,
+    "normal_confidence_max": 0.89794921875,
+    "interior_green_contact_candidate_frames": 90,
+    "frames_with_border_normal_boxes": 40,
+    "frames_with_multiple_normal_boxes": 40,
+    "scene_orientation": "camera upside down in this temporary setup",
+    "accuracy_claim": "Class presence only; not independently annotated precision/recall or position accuracy"
+  }
+}

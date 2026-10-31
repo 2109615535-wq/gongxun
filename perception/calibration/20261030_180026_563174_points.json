@@ -1,0 +1,187 @@
+{
+  "image_size": [
+    640,
+    480
+  ],
+  "pixel_space": "undistorted_same_K",
+  "image_source": "E:\\智能救援\\perception\\artifacts\\c100_captures\\20261030_175838_996029_640x480_undistorted.png",
+  "image_sha256": "781309528104179613e52e796c18b67155ac30a054cfa6920ab74a99faf7613b",
+  "intrinsic_sha256": "f3447fd977871ed5850b0ac40b1b733e87d7595572f45912d18715e814a7a065",
+  "bumper_forward_mm": 0,
+  "collection_center_left_mm": 0,
+  "forward_range_mm": [
+    150,
+    800
+  ],
+  "points": [
+    {
+      "pixel": [
+        128.25,
+        314.75
+      ],
+      "ground_mm": [
+        150,
+        200
+      ],
+      "user_xy_mm": [
+        -200,
+        150
+      ]
+    },
+    {
+      "pixel": [
+        289.75,
+        311.25
+      ],
+      "ground_mm": [
+        150,
+        0
+      ],
+      "user_xy_mm": [
+        0,
+        150
+      ]
+    },
+    {
+      "pixel": [
+        448.75,
+        309.75
+      ],
+      "ground_mm": [
+        150,
+        -200
+      ],
+      "user_xy_mm": [
+        200,
+        150
+      ]
+    },
+    {
+      "pixel": [
+        199.75,
+        238.25
+      ],
+      "ground_mm": [
+        400,
+        200
+      ],
+      "user_xy_mm": [
+        -200,
+        400
+      ]
+    },
+    {
+      "pixel": [
+        297.25,
+        238.75
+      ],
+      "ground_mm": [
+        400,
+        0
+      ],
+      "user_xy_mm": [
+        0,
+        400
+      ]
+    },
+    {
+      "pixel": [
+        395.25,
+        236.75
+      ],
+      "ground_mm": [
+        400,
+        -200
+      ],
+      "user_xy_mm": [
+        200,
+        400
+      ]
+    },
+    {
+      "pixel": [
+        224.25,
+        210.75
+      ],
+      "ground_mm": [
+        600,
+        200
+      ],
+      "user_xy_mm": [
+        -200,
+        600
+      ]
+    },
+    {
+      "pixel": [
+        299.75,
+        209.75
+      ],
+      "ground_mm": [
+        600,
+        0
+      ],
+      "user_xy_mm": [
+        0,
+        600
+      ]
+    },
+    {
+      "pixel": [
+        374.25,
+        210.25
+      ],
+      "ground_mm": [
+        600,
+        -200
+      ],
+      "user_xy_mm": [
+        200,
+        600
+      ]
+    },
+    {
+      "pixel": [
+        241.75,
+        191.75
+      ],
+      "ground_mm": [
+        800,
+        200
+      ],
+      "user_xy_mm": [
+        -200,
+        800
+      ]
+    },
+    {
+      "pixel": [
+        301.25,
+        191.75
+      ],
+      "ground_mm": [
+        800,
+        0
+      ],
+      "user_xy_mm": [
+        0,
+        800
+      ]
+    },
+    {
+      "pixel": [
+        362.75,
+        191.25
+      ],
+      "ground_mm": [
+        800,
+        -200
+      ],
+      "user_xy_mm": [
+        200,
+        800
+      ]
+    }
+  ],
+  "note": "离车实验：原点模拟车头；用户x向右/y向前，工程坐标为[y,-x]。尚未独立验证。"
+}

@@ -1,0 +1,37 @@
+{
+  "detector_backend": "existing_ultralytics_rknn",
+  "detector_pixel_space": "raw",
+  "cpu_threads": 2,
+  "existing_project": "/home/orangepi/yolo_deploy",
+  "model": "/home/orangepi/yolo_deploy/best_rknn_model",
+  "manifest": "/home/orangepi/yolo_deploy/best_rknn_model/metadata.yaml",
+  "expected_model_sha256": "88b23a951327afa4295136fe334f9c22953a37caefe6252ea7a71e6df560cfa8",
+  "expected_runtime_helper_sha256": "a936e4c88cadadace5e708886af4ccc0d9e5a0e79a09c17cf57d569d0dd4e861",
+  "calibration": "calibration.json",
+  "camera": "/dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index0",
+  "require_uvc": true,
+  "capture_api": "v4l2",
+  "fourcc": "MJPG",
+  "width": 640,
+  "height": 480,
+  "fps": 30,
+  "confidence": 0.35,
+  "nms_iou": 0.45,
+  "confirm_frames": 3,
+  "association_iou": 0.2,
+  "smoothing_alpha": 0.6,
+  "max_frame_age_ms": 150,
+  "green_hsv_lower": [
+    35,
+    65,
+    40
+  ],
+  "green_hsv_upper": [
+    90,
+    255,
+    255
+  ],
+  "hazard_corridor_half_width_mm": 180,
+  "baudrate": 115200,
+  "serial_protocol": "motor2_debug_ascii"
+}

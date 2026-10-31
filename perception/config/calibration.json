@@ -1,0 +1,12 @@
+{
+  "validated": false,
+  "image_size": [640, 480],
+  "camera_matrix": null,
+  "dist_coeffs": null,
+  "ground_homography": null,
+  "valid_pixel_polygon": [],
+  "forward_range_mm": [150, 1400],
+  "bumper_forward_mm": 0,
+  "collection_center_left_mm": 0,
+  "note": "未标定模板。bumper_forward_mm 必须实测；有效区域必须覆盖车头前200mm停车点。"
+}
