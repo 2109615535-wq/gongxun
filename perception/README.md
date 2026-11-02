@@ -4,9 +4,19 @@
 
 相机采集、YOLO推理、权重、标定数据、串口运行器和部署工具已从本目录移除。本次不修改仓库的`project/`主控工程，不改变v1线上字节布局，也不表示实际固件已经接入视觉。
 
+## 2026-11-02 更新依据
+
+依据本地视觉工程现有的统一坐标、双摄工作台、`dashboard.py`串口适配器及`dashboard_state.py`状态生成逻辑更新本交接包，继续只保留7个文件。
+
+- 工程坐标统一为X向右、Y向前，单位mm。二进制v1仍发送径向距离和向右为正的方位，字节布局、CRC及物理含义不变。
+- 本地电脑端已实现上视主要测距、下视近距离辅助与夹爪区域类别核验；这些视觉运行代码不随本包上传。
+- 本文新增双摄JSON接口草案，仅记录现有本地适配器行为，须与主控负责人确认后接入。它不是二进制v1的新字段，现有C接收器和Python编解码器均不解析该JSON接口。
+- 当前上视仍是局部检查、下视仍是拟合阶段，摄像头绑定、完整实车运动标定和夹爪区域核验待完成；本地默认`motion_valid=false`。主控串口实机、香橙派双摄性能与整车闭环仍待验收。
+
 ## 文件与阅读顺序
 
 - [本文完整协议](#完整观测协议-v1)：字节布局、CRC、单位、类别、状态/标志、时序、坐标还原和合成HEX报文。
+- 本文“双摄JSON接口草案”部分：主控任务下发、双摄观测回传、有效性和待确认项，不代表正式固件已实现。
 - [stm32/rescue_vision.h](stm32/rescue_vision.h)：接收器、配置、观测、控制输出及公开C接口。
 - [stm32/rescue_vision.c](stm32/rescue_vision.c)：流式组帧、字段与CRC校验、重复图像防保活、危险阻断、300ms失效和接近停车参考实现。
 - [rescue_vision/types.py](rescue_vision/types.py)、[protocol.py](rescue_vision/protocol.py)、[__init__.py](rescue_vision/__init__.py)：只用于协议验证的Python类型与编解码，不含图像处理或串口发送。
@@ -21,7 +31,7 @@
 - 单向视觉TX→主控RX，3.3V TTL、交叉接线并共地，8数据位、无校验、1停止位。联调115200bps；协议也允许921600，但双方必须同步配置，波特率不在帧内传输。
 - 二进制帧采用小端；有符号整数是二进制补码，不按换行符分包，不使用`strlen`或直接强转C结构体。
 - 视觉主动发送新观测，不需要主控请求、ACK或重传；正常空场、故障、目标丢失也要发送无效观测，不能只静默停止。
-- 主控到视觉的任务、应答、稳定目标ID和完整转运任务协议尚未定义。区域与姿态预留不能视为已实现功能；改变布局或既有语义须升级版本。
+- 二进制v1不定义主控到视觉的任务、应答、稳定目标ID和完整转运任务协议。本文另列的JSON任务草案属于独立接入契约；区域与姿态预留不能视为已实现功能，改变二进制布局或既有语义须升级版本。
 
 ### 2. 外层帧
 
@@ -111,26 +121,30 @@ CRC、格式和字段错误帧不发布为新观测，也不刷新有效期。�
 
 ### 7. 坐标还原和安装约定
 
-测量点是**可见贴地边缘中点**，不是物资几何中心。位置相对于约定的底盘原点，x向前、y向左，方位向右为正：
+测量点是**可见贴地边缘中点**，不是物资几何中心。工程统一采用相对于约定车辆原点的X向右、Y向前，方位向右为正：
 
 ```text
 angle_rad = angle_cdeg * pi / 18000
-x_forward_mm = distance_mm * cos(angle_rad)
-y_left_mm = -distance_mm * sin(angle_rad)
+x_right_mm = distance_mm * sin(angle_rad)
+y_forward_mm = distance_mm * cos(angle_rad)
 
-gap_mm = x_forward_mm - bumper_forward_mm
-lateral_mm = y_left_mm - collection_center_left_mm
+gap_mm = y_forward_mm - bumper_forward_mm
+lateral_right_mm = x_right_mm - collection_center_right_mm
+
+# 现有C公开接口保留向左为正的命名，供兼容使用：
+collection_center_left_mm = -collection_center_right_mm
+lateral_mm = -lateral_right_mm
 ```
 
-正前方角度为0；右侧目标角度为正，还原的`y_left_mm`为负。`gap_mm`是车头前缘到贴地点的前向间隙，`lateral_mm`是贴地点相对机构中心线的横向偏移。
+正前方角度为0；右侧目标角度为正，还原的`x_right_mm`为正。`gap_mm`是车头前缘到贴地点的前向间隙；`lateral_right_mm`向右为正，C输出`lateral_mm`仍向左为正，二者符号相反。
 
-双方共同固定底盘原点，实测`bumper_forward_mm`和`collection_center_left_mm`，并使用一致数值。后者向左为正，可为负。示例中的120mm等参数只是合成数据，不代表实车安装值。
+双方共同固定车辆原点，实测前向车头偏移`bumper_forward_mm`和向右机构偏移`collection_center_right_mm`，并使用一致数值。现有`RV_Config`没有`collection_center_right_mm`字段，须把它取负后赋给已有的`collection_center_left_mm`。本次不修改公开C结构体布局；示例中的120mm等参数只是合成数据，不代表实车安装值。
 
-相机内参、畸变、地面映射与外参留在视觉侧，不随每帧发送。视觉须先完成实验原点、朝向到约定底盘坐标的变换；仅当原点相同且前向一致时，实验`X right / Y forward`才可直接转为`x=Y, y=-X`。编码关系为：
+相机内参、畸变、地面映射与外参留在视觉侧，不随每帧发送。电脑实验与实车均用X向右、Y向前，但原点、安装朝向和偏移仍须核对；原点和朝向一致时不交换X/Y或改变符号，否则先做实测平移和旋转变换。编码关系为：
 
 ```text
 distance_mm = round(hypot(x, y))
-angle_cdeg = round(degrees(atan2(-y, x)) * 100)
+angle_cdeg = round(degrees(atan2(x, y)) * 100)
 ```
 
 非有限值、越出u16距离/角度编码范围或实测有效区域的位置不得截断成有效观测。安装关系或地面映射未验证时，应清除观测/标定有效位并发送`status=3`。可以使用合成报文开发通信，不能把模拟有效标志当成实车标定通过。
@@ -167,7 +181,7 @@ angle_cdeg = round(degrees(atan2(-y, x)) * 100)
 - 状态为`RV_WAIT / RV_ALIGN / RV_APPROACH / RV_STOPPED`，输出同时携带原因码。
 - 车头间隙小于170mm时输出0，不自动倒车。
 - 间隙170～230mm且机构横向误差≤20mm时输出0。三个不同且被控制任务消费的新图像均到位，进入`RV_STOPPED`锁存；重复图像或同一快照的重复控制周期不计数。到位条件中断时计数清零。
-- 其他情况下，转向误差为`atan2(-lateral_mm, x_forward_mm)`，顺时针角速度为其1.5倍，限幅±0.4rad/s。
+- 其他情况下，转向误差为`atan2(-lateral_mm, y_forward_mm)`，等价于`atan2(lateral_right_mm, y_forward_mm)`，顺时针角速度为其1.5倍，限幅±0.4rad/s。
 - 误差绝对值大于5°、间隙≤230mm或`allow_forward=0`时只输出转向。
 - 允许前进且已对准时，前向速度为`0.6 * (gap_mm - 200)`，限幅100mm/s。
 - 到位锁存须由控制上下文显式调用`RV_ResetTrial`开始新试验，仍等待新图像。不要让其他控制来源覆盖零输出。
@@ -231,7 +245,7 @@ void RV_ResetTrial(RV_Receiver *receiver);
 uint16_t RV_Crc16(const uint8_t *data, uint16_t length);
 ```
 
-`RV_Config`中的`bumper_forward_mm`和`collection_center_left_mm`必须与视觉标定所用安装值一致。`allow_forward=0`只禁止前进，仍可能输出转向请求，不等于禁止全部运动。
+`RV_Config`中的`bumper_forward_mm`必须与视觉标定所用前向安装值一致；`collection_center_left_mm`为视觉向右机构偏移`collection_center_right_mm`的相反数。C内部使用`forward_mm/left_mm`显式命名，不再将它们简称为工程X/Y。`allow_forward=0`只禁止前进，仍可能输出转向请求，不等于禁止全部运动。
 
 ## 速度适配与参考接近策略
 
@@ -252,10 +266,111 @@ normalized_target = raw_counts_s * 1000 / ENCODER_SPEED_AT_PWM1000
 
 本交付不包含自动化测试脚本或C测试夹具。接收、校验、坐标、超时和接近行为须在主控集成时按协议验收。
 
+## 双摄JSON接口草案（待主控确认）
+
+本节按2026-11-02本地`ControllerLink`、`DashboardState`和双摄观测生成逻辑记录接口，供双方评审，**不是已冻结或已接入固件的正式协议**。本包不包含双摄运行器、JSON解析器或任务状态机；`stm32/rescue_vision.c/.h`只接收前述二进制v1。
+
+### 1. 传输与启用
+
+- 草案模式名为`rescue_json_v1`，须在本地双摄运行器中显式启用；默认`motor_debug_ascii`仅接收现有四电机遥测，不发送JSON观测，也不把遥测视为救援任务。
+- 串口115200/8N1、3.3V TTL、交叉接线并共地。传输UTF-8 JSON对象，每条消息以换行结束；当前视觉发送器使用ASCII转义的JSON文本，属于UTF-8的兼容子集，末尾加`\n`。接收器接受`\n`或`\r`分隔，兼容CRLF。
+- 处理拆包、粘包和空行。当前视觉任务接收单行最多2048字节，不含结束符；超长后丢弃至下一个换行并计无效行，坏JSON或非法任务不刷新有效期。
+- JSON消息没有二进制帧头、长度字段或CRC，也没有ACK、重传和主控动作命令。不要把JSON发给`RV_OnByte`期望它解析，不在同一串口无约定地混发JSON、二进制v1和ASCII电机命令。
+
+### 2. 主控→视觉：任务与心跳
+
+合成示例，`VERIFY`只是说明用状态名，不是双方已冻结的状态枚举：
+
+```json
+{"type":"rescue_task_v1","session_id":"boot-001","seq":1,"task_id":"collect-001","state":"VERIFY","expected":"normal_material"}
+```
+
+全部字段均须存在：
+
+- `type`：固定字符串`rescue_task_v1`。
+- `session_id`：1～64字符的启动会话标识。主控重启或seq耗尽时使用新会话；旧会话最后接受的任务仍在1000ms窗口内时，视觉拒绝另一会话切入。
+- `seq`：0～4294967295的整数，布尔值无效；同一会话严格递增，每次任务心跳递增。同一会话的重复或倒序值始终拒绝，即使已经超时；不按u32回绕接受旧序号。
+- `task_id`：1～64字符的任务标识。换目标或需要重新开始核验的重试，应换任务编号；不是物体跟踪ID。
+- `state`：1～64字符的主控状态名，视觉按原值保存并参与核验重置；合法状态枚举及动作语义仍待主控确认。
+- `expected`：`normal_material`、`core_material`、`casualty`、`red_material_zone`、`blue_material_zone`、`red_casualty_zone`、`blue_casualty_zone`，或显式`null`。不接受`hazard`作为任务目标；`null`不选择任务目标。
+
+主控周期回传同一任务时，保持会话、任务、状态与类别不变，只递增seq。视觉按本地接收时刻维护任务有效期，当前超过1000ms未接受新任务则任务失效；拒绝帧不刷新该时刻。会话、任务、类别或状态改变会使旧核验结果失效，重新累计连续图像。
+
+本地网页的联调任务使用`desktop`来源。见过有效主控会话后，主控失联不自动恢复网页联调任务；主控也不应接受不匹配自身当前会话/任务的观测。
+
+### 3. 视觉→主控：双摄观测
+
+当前约每100ms尝试发送一条`rescue_observation_v1`，实际周期受串口读写和线程调度影响，不保证固定10Hz，也不等于两路推理帧率。以下为人工构造、保持运动无效的字段示例：
+
+```json
+{
+  "type": "rescue_observation_v1",
+  "task_id": "collect-001",
+  "session_id": "boot-001",
+  "tick_ms": 10000,
+  "source": "upper",
+  "expected": "normal_material",
+  "motion_valid": false,
+  "hazard_blocked": false,
+  "position_mm": {
+    "x_right": 30.0,
+    "y_forward": 500.0,
+    "ground_range": 500.89919145472777,
+    "bearing_deg": 3.433630362450522
+  },
+  "position_quality": "local_checked",
+  "visual_target": {
+    "name": "normal_material",
+    "confidence": 0.9,
+    "box": [300, 200, 340, 240],
+    "confirmed": true,
+    "center_offset_normalized": 0.0
+  },
+  "gripper_status": "UNCONFIGURED",
+  "gripper_match": false,
+  "upper_status": "OK",
+  "lower_status": "OK"
+}
+```
+
+字段约定：
+
+- `type`固定为`rescue_observation_v1`。`session_id/task_id/expected`对应当前任务，任务失效时可为`null`；主控须与自身当前任务匹配，不把换任务后的旧结果当作本次结果。
+- `tick_ms`为视觉**生成发送快照时**的单调毫秒时刻取u32，不是图像采集时刻。这与二进制v1有效观测的tick语义不同，不能用它单独证明新图像到达，也不能与主控时钟直接相减。
+- `source`是测距来源`upper`、`lower`或`null`。优先采用上视带位置的选中目标，无可用上视位置时可显示下视辅助位置；下视替代不授权整车前进。
+- `position_mm`为对象或`null`。`x_right/y_forward`分别为向右/向前坐标，`ground_range`为地面径向距离，均为mm；`bearing_deg`为向右为正的角度，单位**度**，不是二进制的0.01°。车辆原点和机构偏移仍须按实测安装关系确认。
+- `position_quality`为`validated`、`local_checked`、`fit_only`、`near_estimate`、`bbox_ground_estimate`或`null`。局部检查、仅拟合、外推和框底边估算均不能当作完整运动标定通过；是否允许运动以有效性条件为准。
+- `visual_target`是主要图像目标或`null`，优先上视、其次下视，不保证它与`source`来自同一路。`name`为类别名称；`confidence`为0～1数值，区别于二进制0～100；`box`为原图像素`[x1,y1,x2,y2]`；`confirmed`为连续帧确认；`center_offset_normalized`为框水平中心相对图像中心的归一化偏移，向右为正，范围约-1～1，不是毫米距离。
+- `motion_valid`为布尔值，只表示当前视觉运动条件是否满足，不是使能或速度命令。必须结合任务匹配、接收超时、相机状态和主控自身运动仲裁。
+- `hazard_blocked`为双路危险/未知类别阻断汇总。该值为false不能独立证明通道安全，尤其在故障或图像过期时。
+- `gripper_status`为下视区域核验状态字符串；`gripper_match`是经过主控任务、双路新鲜性和危险检查后的布尔结果，不是原始类别相符值。
+- `upper_status/lower_status`为相机观测状态字符串，如`OK`、`DISABLED`、`CAMERA_FAULT`、`CALIBRATION_ERROR`、`STALE`、`REPLAY_ENDED`等；正式状态枚举待双方确认。非OK状态不可仅因仍有数值而继续运动。
+
+### 4. 双摄有效性与夹爪核验
+
+上视承担主要测距，下视承担近距离辅助及夹爪区域核验。当前配置的上视显示范围为前向100～800mm，其中100～150mm是近场外推；下视为0～300mm，其中0～100mm是外推。范围来自当前标定/配置，不是v1固定量程，也不代表全范围精度或实车运动标定已通过。
+
+运动有效要求上视具有已验证的普通物资位置、连续新帧确认、上下两路均为OK且年龄不超过150ms、有效主控任务，以及无危险/未知阻断。下视有距离而上视失效时，`motion_valid`仍为false。视频回放不授权运动。当前交付所依据的本地标定未达到上述实车运动条件，所以默认不开放运动有效标志。
+
+框位于下视夹爪ROI的目标不再经地面H映射计算位置，避免把离地物体当成贴地物资。区域核验的现有工程初值为置信度≥0.35、框面积至少70%在ROI内、关联IoU≥0.2、至少3个连续新鲜图像，均待实拍验证。
+
+区域状态包括：`UNCONFIGURED`未配置；`WAITING_TASK`无适用物资任务；`CONFIRMING`确认中；`MATCH`类别相符；`MISMATCH`稳定检出其他类别；`EMPTY`连续未检出；`AMBIGUOUS`多个候选；`HAZARD`危险目标。未验证ROI时，稳定结果带`_UNVERIFIED`后缀且match保持false；故障、过期或任务切换后还可能输出`STALE`、`WAITING_TASK_FRAME`等无效状态。
+
+只有区域已验证、单物体与当前任务相符且连续稳定，并满足主控任务有效、双路新鲜且无阻断时，`gripper_match`才为true。`EMPTY`也可能是漏检，`MATCH`不能替代机构闭合、到位或接触传感器反馈。
+
+### 5. 时序区别与待冻结项
+
+- 视觉读取状态和发送观测时重新检查年龄：超过150ms禁止控制有效，超过300ms清除显示目标；任务超过1000ms失效。这些是本地双摄当前配置，不替代二进制C模块的300ms接收有效期。
+- JSON的发送tick持续变化也不代表图像更新。当前消息没有独立观测序号、双路图像采集tick或年龄字段，主控不能照搬二进制“不同tick即新图像”的计数逻辑；正式方案应确认是否补齐这些字段及去重规则。
+- 主控须用自己的本地到达时间维护JSON接收看门狗，并对任务失配、无效观测、相机故障和失联撤销动作。主控端具体超时阈值、制动与恢复策略仍待确认，本文不把视觉的1000ms任务接收阈值指定为车辆停车阈值。
+- 现有草案不回显主控任务seq，不提供ACK、命令重传、CRC或动作完成确认。视觉发送端没有另设固定JSON观测帧长上限，主控缓冲容量、必选字段与未知字段策略需一起冻结。
+- 115200下约10Hz的JSON发送不代表已达到项目≥15Hz有效观测目标。正式接口需确认输出频率、帧大小、串口带宽与完整延迟。
+- 最终主控源码副本、实际烧录版本、UART引脚、`state`枚举、任务切换/重试语义、标定原点、ROI、停止策略及采用二进制或JSON的取舍均待确认。仓库现有UART5遥测不能视为已实现该双向草案。
+
 ## 硬件验收与范围
 
 先在输出隔离条件下验收正常/空场/故障帧、拆粘包、坏CRC、字段错误、左右坐标符号及重复tick。随后验证完全断流、危险目标及无效观测能撤销命令，并实测调度、驱动执行与机械停车延迟。
 
 300ms是软件命令有效期，不能视为车辆物理停止时间。合成报文核对也不能代替ARM编译、UART中断、实际标定和实车停车验收。
 
-v1只定义视觉→主控观测；反向任务命令、ACK、目标锁定ID、全场定位、安全区导航和完整转运流程尚未定义。新增布局或改变既有字段含义时须升级版本并同步双方，不把预留字段当成已实现能力。
+二进制v1只定义视觉→主控观测；下文JSON草案不向二进制协议增加任务命令、ACK或目标ID。全场定位、安全区导航和完整转运流程仍须后续定义。新增二进制布局或改变既有字段含义时须升级版本并同步双方，不把预留字段当成已实现能力。

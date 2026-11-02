@@ -27,7 +27,8 @@ typedef struct {
 
 typedef struct {
     float bumper_forward_mm, collection_center_left_mm;
-    /* Copy these offsets from the validated camera calibration, in chassis axes. */
+    /* Chassis coordinates: X right, Y forward (mm). Preserve the left-positive
+       field for compatibility: collection_center_left_mm = -right offset. */
     uint8_t allow_forward; /* 0: turn-only trial; 1: approach at <=100mm/s */
 } RV_Config;
 
@@ -36,7 +37,7 @@ typedef struct {
     RV_Reason reason;
     float forward_mm_s;
     float clockwise_rad_s; /* right target -> positive; adapt chassis sign explicitly */
-    float gap_mm, lateral_mm;
+    float gap_mm, lateral_mm; /* front clearance; left-positive lateral error */
 } RV_Command;
 
 typedef struct {

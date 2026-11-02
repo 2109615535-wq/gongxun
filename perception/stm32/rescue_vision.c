@@ -138,7 +138,7 @@ RV_Command RV_Step(RV_Receiver *r, uint32_t now_ms) {
     const RV_Observation *obs;
     uint16_t i;
     uint8_t normal_count = 0, fresh;
-    float angle, x, y, gap, lateral;
+    float angle, forward_mm, left_mm, gap, lateral;
     if (r->overflow) {
         r->tail = r->head; r->overflow = 0; r->used = 0;
         memset(&r->observation, 0, sizeof(r->observation));
@@ -163,9 +163,9 @@ RV_Command RV_Step(RV_Receiver *r, uint32_t now_ms) {
         if (t->type == 4 || (t->flags & 1u)) {
             if (!(t->flags & 32u) || !t->distance_mm) return halt(r, RV_HAZARD);
             angle = t->angle_cdeg * (RV_PI/18000.f);
-            x = t->distance_mm*cosf(angle)-r->config.bumper_forward_mm;
-            y = -t->distance_mm*sinf(angle)-r->config.collection_center_left_mm;
-            if (x > 0 && x <= 1400 && fabsf(y) <= 180) return halt(r, RV_HAZARD);
+            forward_mm = t->distance_mm*cosf(angle)-r->config.bumper_forward_mm;
+            left_mm = -t->distance_mm*sinf(angle)-r->config.collection_center_left_mm;
+            if (forward_mm > 0 && forward_mm <= 1400 && fabsf(left_mm) <= 180) return halt(r, RV_HAZARD);
         }
         if (t->type == 1) {
             ++normal_count;
@@ -176,10 +176,10 @@ RV_Command RV_Step(RV_Receiver *r, uint32_t now_ms) {
         (target->flags & 48u) != 48u || (target->flags & 5u) || !target->distance_mm)
         return halt(r, RV_INVALID);
     angle = target->angle_cdeg * (RV_PI/18000.f);
-    x = target->distance_mm*cosf(angle);
-    y = -target->distance_mm*sinf(angle);
-    gap = x-r->config.bumper_forward_mm;
-    lateral = y-r->config.collection_center_left_mm;
+    forward_mm = target->distance_mm*cosf(angle);
+    left_mm = -target->distance_mm*sinf(angle);
+    gap = forward_mm-r->config.bumper_forward_mm;
+    lateral = left_mm-r->config.collection_center_left_mm;
     r->command.gap_mm = gap; r->command.lateral_mm = lateral;
     if (gap < 170) return halt(r, RV_TOO_CLOSE);
     fresh = obs->generation != r->consumed_generation;
@@ -196,7 +196,7 @@ RV_Command RV_Step(RV_Receiver *r, uint32_t now_ms) {
         return r->command;
     }
     r->arrival_count = 0;
-    angle = atan2f(-lateral, x);
+    angle = atan2f(-lateral, forward_mm);
     r->command.clockwise_rad_s = limit(1.5f*angle, .4f);
     if (fabsf(angle) > 5.f*(RV_PI/180.f) || gap <= 230 || !r->config.allow_forward) {
         r->command.state = RV_ALIGN;
