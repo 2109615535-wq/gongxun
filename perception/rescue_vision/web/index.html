@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="智能救援双摄像头实时监看、目标定位与夹爪核验工作台"
+    />
+    <title>智能救援 · 双视视觉工作台</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="智能救援首页"
+        ><span class="brand-icon">◈</span
+        ><span>RESCUE<span class="brand-light"> / VISION</span></span></a
+      >
+      <div class="top-status">
+        <span id="service-dot" class="dot"></span
+        ><span id="service-status">连接服务中</span><span class="divider"></span
+        ><span id="clock">--</span>
+      </div>
+    </header>
+    <main>
+      <section class="heading">
+        <div>
+          <div class="eyebrow">智能救援 / 视觉模块</div>
+          <h1>双视视觉工作台</h1>
+          <p>上视定位，下视核验。观测、任务与设备状态集中呈现。</p>
+        </div>
+        <div class="heading-actions">
+          <span class="tag" id="runtime-tag">视觉联调</span
+          ><button id="pause" type="button">暂停画面</button>
+        </div>
+      </section>
+      <div id="connection-alert" class="alert" hidden role="alert">
+        服务连接中断，画面与观测已停止更新。
+      </div>
+      <section class="metrics" aria-label="视觉概况">
+        <article class="metric">
+          <span>距离来源</span><strong id="distance-source">等待观测</strong
+          ><small>上视优先 · 下视辅助</small>
+        </article>
+        <article class="metric">
+          <span>视觉任务</span><strong id="task-name">等待接入</strong
+          ><small id="task-source">尚未收到状态机任务</small>
+        </article>
+        <article class="metric">
+          <span>夹爪核验</span><strong id="grip-state">待配置区域</strong
+          ><small id="grip-detail">下视连续帧确认</small>
+        </article>
+        <article class="metric">
+          <span>控制有效性</span><strong id="motion-state">观测待验收</strong
+          ><small id="hazard-state">等待双路新鲜观测</small>
+        </article>
+      </section>
+      <section class="camera-grid" aria-label="双摄像头实时画面">
+        <article class="camera-card" data-role="upper">
+          <div class="camera-heading">
+            <div>
+              <span class="camera-number">01</span>
+              <h2>上视视角 <span>主要定位</span></h2>
+            </div>
+            <span class="badge" id="upper-status">未开启</span>
+          </div>
+          <div class="viewport">
+            <img id="upper-image" alt="上视摄像头实时画面" hidden />
+            <div class="empty" id="upper-empty">
+              <span class="viewfinder">⌖</span><strong>等待上视摄像头</strong>
+              <p>连接后展示实时画面与目标识别框</p>
+            </div>
+            <div class="video-label"><span class="dot"></span>UPPER CAMERA</div>
+            <span class="frame-label" id="upper-mode">LIVE INPUT</span>
+          </div>
+          <div class="camera-data">
+            <div><small>横向 X</small><b id="upper-x">—</b></div>
+            <div><small>前向 Y</small><b id="upper-y">—</b></div>
+            <div><small>观测年龄</small><b id="upper-age">—</b></div>
+            <a
+              class="snapshot"
+              href="/snapshot/upper.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="打开上视当前帧"
+              >保存帧 ↗</a
+            >
+          </div>
+          <div class="camera-note">
+            <span id="upper-quality">等待加载标定</span
+            ><span id="upper-inference">推理 —</span>
+          </div>
+          <div class="detections" id="upper-detections">暂无识别结果</div>
+          <p class="camera-error" id="upper-error" hidden></p>
+        </article>
+        <article class="camera-card" data-role="lower">
+          <div class="camera-heading">
+            <div>
+              <span class="camera-number">02</span>
+              <h2>下视视角 <span>夹爪核验</span></h2>
+            </div>
+            <span class="badge" id="lower-status">未开启</span>
+          </div>
+          <div class="viewport">
+            <img id="lower-image" alt="下视摄像头实时画面" hidden />
+            <div class="empty" id="lower-empty">
+              <span class="viewfinder">⌖</span><strong>等待下视摄像头</strong>
+              <p>核验夹爪区域内的物体类别</p>
+            </div>
+            <div class="video-label"><span class="dot"></span>LOWER CAMERA</div>
+            <span class="frame-label" id="lower-mode">LIVE INPUT</span>
+          </div>
+          <div class="camera-data">
+            <div><small>横向 X</small><b id="lower-x">—</b></div>
+            <div><small>前向 Y</small><b id="lower-y">—</b></div>
+            <div><small>观测年龄</small><b id="lower-age">—</b></div>
+            <a
+              class="snapshot"
+              href="/snapshot/lower.jpg"
+              target="_blank"
+              rel="noopener"
+              aria-label="打开下视当前帧"
+              >保存帧 ↗</a
+            >
+          </div>
+          <div class="camera-note">
+            <span id="lower-quality">等待加载标定</span
+            ><span id="lower-inference">推理 —</span>
+          </div>
+          <div class="detections" id="lower-detections">暂无识别结果</div>
+          <p class="camera-error" id="lower-error" hidden></p>
+          <div class="roi-toolbar">
+            <button id="edit-roi" type="button">设置夹爪 ROI</button>
+            <span id="roi-feedback">在下视实拍画面上框选物体核验区域</span>
+          </div>
+        </article>
+      </section>
+      <section class="bottom-grid">
+        <article class="panel">
+          <div class="panel-title">
+            <h2>任务与状态机</h2>
+            <span class="small-tag" id="controller-status">未接入</span>
+          </div>
+          <div class="controller-state">
+            <span class="state-icon">◇</span>
+            <div>
+              <strong id="controller-state">等待主控状态</strong>
+              <p id="controller-detail">
+                接入状态回传后，这里显示主控实际状态。
+              </p>
+            </div>
+          </div>
+          <div class="debug-task">
+            <label for="debug-target">联调目标</label
+            ><select id="debug-target">
+              <option value="">等待任务</option>
+              <option value="normal_material">普通物资</option>
+              <option value="core_material">核心物资</option>
+              <option value="casualty">伤员</option>
+              <option value="red_material_zone">红方物资区</option>
+              <option value="red_casualty_zone">红方伤员区</option>
+              <option value="blue_material_zone">蓝方物资区</option>
+              <option value="blue_casualty_zone">蓝方伤员区</option>
+            </select>
+            <label for="debug-state">任务状态</label>
+            <input
+              id="debug-state"
+              type="text"
+              maxlength="64"
+              value="IDLE"
+              placeholder="填写主控约定状态，如 VERIFY"
+            />
+            <button id="apply-task" type="button">应用任务状态</button>
+            <span id="debug-feedback"
+              >网页设置用于视觉联调，主控接入后显示其实际任务</span
+            >
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-title">
+            <h2>接入检查</h2>
+            <span class="small-tag">本机运行</span>
+          </div>
+          <ul class="checklist">
+            <li><span>YOLO 模型</span><b id="model-state">等待加载</b></li>
+            <li><span>夹爪像素区域</span><b id="roi-state">待配置</b></li>
+            <li><span>主控通信</span><b id="serial-state">未接入</b></li>
+            <li><span>坐标约定</span><b>X 向右 · Y 向前 · mm</b></li>
+          </ul>
+          <p class="hint">
+            局域网接入时，在电脑浏览器打开视觉服务设备的 IP
+            与端口。网页自动跟随两路视频和任务状态更新。
+          </p>
+        </article>
+      </section>
+      <footer>
+        <span><span class="dot"></span> 双摄像头感知 / 视觉联调</span
+        ><span id="last-update">等待首次更新</span>
+      </footer>
+    </main>
+    <dialog id="roi-dialog" aria-labelledby="roi-title">
+      <div class="panel-title">
+        <h2 id="roi-title">设置下视夹爪核验区域</h2>
+        <button id="close-roi" type="button">关闭</button>
+      </div>
+      <p class="hint">
+        在冻结的原始画面上拖动框选，尽量覆盖夹爪内部并避开夹爪本体。保存后立即重新累计观测。
+      </p>
+      <canvas
+        id="roi-canvas"
+        width="640"
+        height="480"
+        aria-label="拖动框选夹爪区域"
+      ></canvas>
+      <div class="roi-toolbar">
+        <button id="refresh-roi" type="button">刷新实拍</button
+        ><button id="save-roi" type="button" disabled>保存区域</button
+        ><button id="clear-roi" type="button">清除区域</button
+        ><span id="roi-coordinates">等待实拍</span>
+      </div>
+    </dialog>
+  </body>
+</html>

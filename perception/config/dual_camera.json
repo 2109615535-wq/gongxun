@@ -1,0 +1,42 @@
+{
+  "model": "../models/best.pt",
+  "expected_model_sha256": "ab67fffaad0bbdac0f915941a328a310d55bc5a45fd5bc60f4815bbd33146d89",
+  "device": "cpu",
+  "confidence": 0.35,
+  "confirm_frames": 3,
+  "association_iou": 0.2,
+  "grip_coverage": 0.7,
+  "max_frame_age_ms": 300,
+  "control_max_age_ms": 150,
+  "controller_timeout_ms": 1000,
+  "fps": 30,
+  "gripper": {
+    "roi_raw_xyxy": null,
+    "validated": false
+  },
+  "cameras": {
+    "upper": {
+      "source": null,
+      "kind": "camera",
+      "capture_api": "dshow",
+      "calibration_mode": "vehicle_check",
+      "mapping": "dual_calibration/upper_ground.json",
+      "check_report": "dual_calibration/upper_check_report.json",
+      "output_range_mm": [
+        100,
+        800
+      ]
+    },
+    "lower": {
+      "source": null,
+      "kind": "camera",
+      "capture_api": "dshow",
+      "calibration_mode": "lower_fit",
+      "mapping": "dual_calibration/lower_ground.json",
+      "output_range_mm": [
+        0,
+        300
+      ]
+    }
+  }
+}

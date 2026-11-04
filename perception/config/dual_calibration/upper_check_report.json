@@ -1,0 +1,180 @@
+{
+  "scope": "independent_vehicle_local_check",
+  "validated": false,
+  "coordinate_system": "x_right_y_forward",
+  "mapping_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\vehicle_calibration\\fits\\20261101_143856_293596_unvalidated.json",
+  "mapping_sha256": "194f9152dfdb5d908bbe3b507c1e89a6c77e0bbeaf9884929dcccaa8297bf1bc",
+  "image_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\c100_captures\\20261101_143246_746400_640x480_undistorted.png",
+  "image_sha256": "eba96b77c34ee3d00654255afb1ef09fa9dbdcb1bd382623fb0c36d7d82a9a1f",
+  "error_limits_user_xy_mm": [
+    20,
+    30
+  ],
+  "max_abs_error_user_xy_mm": [
+    13.186131488189474,
+    23.467385628686316
+  ],
+  "points": [
+    {
+      "point_id": 1,
+      "pixel": [
+        180.75,
+        343.75
+      ],
+      "ground_mm": [
+        -105.0,
+        200.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        200.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        -110.4848298473539,
+        201.5573632084374
+      ],
+      "signed_error_user_xy_mm": [
+        -5.484829847353893,
+        1.5573632084374083
+      ],
+      "within_error_limits": true
+    },
+    {
+      "point_id": 2,
+      "pixel": [
+        440.25,
+        331.75
+      ],
+      "ground_mm": [
+        95.0,
+        200.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        200.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        104.31822657392432,
+        206.73868526047875
+      ],
+      "signed_error_user_xy_mm": [
+        9.31822657392432,
+        6.738685260478746
+      ],
+      "within_error_limits": true
+    },
+    {
+      "point_id": 3,
+      "pixel": [
+        254.25,
+        226.25
+      ],
+      "ground_mm": [
+        -105.0,
+        500.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        500.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        -109.15654848467527,
+        520.6926001959315
+      ],
+      "signed_error_user_xy_mm": [
+        -4.15654848467527,
+        20.692600195931504
+      ],
+      "within_error_limits": true
+    },
+    {
+      "point_id": 4,
+      "pixel": [
+        369.25,
+        224.75
+      ],
+      "ground_mm": [
+        95.0,
+        500.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        500.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        94.61911565365085,
+        501.54444356652425
+      ],
+      "signed_error_user_xy_mm": [
+        -0.3808843463491485,
+        1.5444435665242509
+      ],
+      "within_error_limits": true
+    },
+    {
+      "point_id": 5,
+      "pixel": [
+        270.25,
+        200.75
+      ],
+      "ground_mm": [
+        -105.0,
+        700.0
+      ],
+      "user_xy_mm": [
+        -105.0,
+        700.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        -108.18971431310624,
+        723.4673856286863
+      ],
+      "signed_error_user_xy_mm": [
+        -3.1897143131062364,
+        23.467385628686316
+      ],
+      "within_error_limits": true
+    },
+    {
+      "point_id": 6,
+      "pixel": [
+        360.25,
+        197.75
+      ],
+      "ground_mm": [
+        95.0,
+        700.0
+      ],
+      "user_xy_mm": [
+        95.0,
+        700.0
+      ],
+      "inside_valid_region": true,
+      "predicted_user_xy_mm": [
+        108.18613148818947,
+        713.042042030073
+      ],
+      "signed_error_user_xy_mm": [
+        13.186131488189474,
+        13.042042030073048
+      ],
+      "within_error_limits": true
+    }
+  ],
+  "note": "实车局部独立点误差检查；不重新拟合，不代表完成完整实车验收或允许运动。",
+  "vehicle_local_check_passed": true,
+  "reference_frame": "vehicle_user_defined",
+  "motion_valid": false,
+  "full_vehicle_validation_completed": false,
+  "checked_forward_positions_mm": [
+    200.0,
+    500.0,
+    700.0
+  ],
+  "far_check_at_least_1m_present": false
+}

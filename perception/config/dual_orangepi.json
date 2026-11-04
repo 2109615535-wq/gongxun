@@ -1,0 +1,83 @@
+{
+  "model": "../models/best_rknn_model",
+  "expected_model_sha256": "88b23a951327afa4295136fe334f9c22953a37caefe6252ea7a71e6df560cfa8",
+  "device": "cpu",
+  "confidence": 0.35,
+  "confirm_frames": 3,
+  "association_iou": 0.2,
+  "grip_coverage": 0.7,
+  "max_frame_age_ms": 300,
+  "control_max_age_ms": 150,
+  "controller_timeout_ms": 1000,
+  "fps": 30,
+  "gripper": {
+    "roi_raw_xyxy": [
+      248,
+      124,
+      411,
+      435
+    ],
+    "validated": false,
+    "dark_guard": {
+      "enabled": true,
+      "value_max": 55,
+      "min_area_px": 500
+    }
+  },
+  "cameras": {
+    "upper": {
+      "source": "/dev/v4l/by-path/platform-xhci-hcd.11.auto-usb-0:1:1.0-video-index0",
+      "kind": "camera",
+      "capture_api": "v4l2",
+      "calibration_mode": "vehicle_check",
+      "mapping": "dual_calibration/upper_ground.json",
+      "check_report": "dual_calibration/upper_check_report.json",
+      "output_range_mm": [
+        100,
+        800
+      ],
+      "require_uvc": true,
+      "rknn_core_mask": 3,
+      "controls": {
+        "auto_exposure": 3,
+        "exposure_dynamic_framerate": 0,
+        "backlight_compensation": 0
+      }
+    },
+    "lower": {
+      "source": "/dev/v4l/by-path/platform-xhci-hcd.7.auto-usb-0:1:1.0-video-index0",
+      "kind": "camera",
+      "capture_api": "v4l2",
+      "calibration_mode": "lower_fit",
+      "mapping": "dual_calibration/lower_ground.json",
+      "output_range_mm": [
+        0,
+        300
+      ],
+      "require_uvc": true,
+      "rknn_core_mask": 4,
+      "controls": {
+        "auto_exposure": 3,
+        "exposure_dynamic_framerate": 0,
+        "backlight_compensation": 0
+      }
+    }
+  },
+  "detector_backend": "existing_ultralytics_rknn",
+  "existing_project": "/home/orangepi/yolo_deploy",
+  "expected_runtime_helper_sha256": "a936e4c88cadadace5e708886af4ccc0d9e5a0e79a09c17cf57d569d0dd4e861",
+  "cpu_threads": 2,
+  "nms_iou": 0.45,
+  "rknn_fast_path": true,
+  "rknn_core_mask": 0,
+  "inference_workers": 2,
+  "preview_fps": 20,
+  "jpeg_quality": 70,
+  "capture_buffers": 2,
+  "cpu_affinity": [
+    4,
+    5,
+    6,
+    7
+  ]
+}

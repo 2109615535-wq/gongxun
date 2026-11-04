@@ -1,0 +1,261 @@
+{
+  "validated": false,
+  "image_size": [
+    640,
+    480
+  ],
+  "camera_matrix": [
+    [
+      302.089911374534,
+      0.0,
+      320.60962164096037
+    ],
+    [
+      0.0,
+      302.09947984095874,
+      240.16429400931636
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "dist_coeffs": [
+    0.07139533270457014,
+    -0.11506182416494097,
+    -0.0003530124050290447,
+    -0.00014901526777919789,
+    0.040438496838353544
+  ],
+  "ground_homography": [
+    [
+      -1.2228182002367463,
+      -0.008116541487881738,
+      386.50546388576515
+    ],
+    [
+      -0.015205918269982239,
+      0.45929650529811966,
+      -451.931754339422
+    ],
+    [
+      -0.00035798143704495925,
+      -0.007004549446986004,
+      1.0
+    ]
+  ],
+  "valid_pixel_polygon": [
+    [
+      629.75,
+      383.25
+    ],
+    [
+      9.25,
+      399.75
+    ],
+    [
+      215.75,
+      217.25
+    ],
+    [
+      240.75,
+      196.25
+    ],
+    [
+      314.75,
+      191.75
+    ],
+    [
+      390.75,
+      188.75
+    ]
+  ],
+  "forward_range_mm": [
+    150.0,
+    800.0
+  ],
+  "bumper_forward_mm": 0.0,
+  "collection_center_left_mm": -0.0,
+  "intrinsic_source": "F:\\Learning coding\\opencv\\python hello\\camera_calibration.json",
+  "intrinsic_source_sha256": "ac251d52be147e56c22f5f0a334da395a7dfb9c43ef78b096554da60ed5c5be8",
+  "note": "实车地面映射，仅完成拟合；车体参考偏移需复核，独立点验收未完成。",
+  "coordinate_system": "x_right_y_forward",
+  "collection_center_right_mm": 0.0,
+  "ground_fit_points": [
+    {
+      "pixel": [
+        9.25,
+        399.75
+      ],
+      "ground_mm": [
+        -200.0,
+        150.0
+      ],
+      "user_xy_mm": [
+        -200.0,
+        150.0
+      ]
+    },
+    {
+      "pixel": [
+        319.75,
+        385.75
+      ],
+      "ground_mm": [
+        0.0,
+        150.0
+      ],
+      "user_xy_mm": [
+        0,
+        150.0
+      ]
+    },
+    {
+      "pixel": [
+        629.75,
+        383.25
+      ],
+      "ground_mm": [
+        200.0,
+        150.0
+      ],
+      "user_xy_mm": [
+        200.0,
+        150.0
+      ]
+    },
+    {
+      "pixel": [
+        176.25,
+        254.75
+      ],
+      "ground_mm": [
+        -200.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        -200.0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        316.75,
+        247.25
+      ],
+      "ground_mm": [
+        0.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        456.75,
+        243.25
+      ],
+      "ground_mm": [
+        200.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        200.0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        215.75,
+        217.25
+      ],
+      "ground_mm": [
+        -200.0,
+        600.0
+      ],
+      "user_xy_mm": [
+        -200.0,
+        600.0
+      ]
+    },
+    {
+      "pixel": [
+        315.25,
+        210.25
+      ],
+      "ground_mm": [
+        0.0,
+        600.0
+      ],
+      "user_xy_mm": [
+        0,
+        600.0
+      ]
+    },
+    {
+      "pixel": [
+        412.25,
+        210.75
+      ],
+      "ground_mm": [
+        200.0,
+        600.0
+      ],
+      "user_xy_mm": [
+        200.0,
+        600.0
+      ]
+    },
+    {
+      "pixel": [
+        240.75,
+        196.25
+      ],
+      "ground_mm": [
+        -200.0,
+        800.0
+      ],
+      "user_xy_mm": [
+        -200.0,
+        800.0
+      ]
+    },
+    {
+      "pixel": [
+        314.75,
+        191.75
+      ],
+      "ground_mm": [
+        0.0,
+        800.0
+      ],
+      "user_xy_mm": [
+        0,
+        800.0
+      ]
+    },
+    {
+      "pixel": [
+        390.75,
+        188.75
+      ],
+      "ground_mm": [
+        200.0,
+        800.0
+      ],
+      "user_xy_mm": [
+        200.0,
+        800.0
+      ]
+    }
+  ],
+  "ground_fit_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\vehicle_calibration\\fits\\20261101_143856_293596_points.json",
+  "calibration_scope": "vehicle_pending_validation",
+  "ground_image_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\c100_captures\\20261101_143246_746400_640x480_undistorted.png",
+  "ground_image_sha256": "eba96b77c34ee3d00654255afb1ef09fa9dbdcb1bd382623fb0c36d7d82a9a1f",
+  "intrinsic_config_sha256": "f3447fd977871ed5850b0ac40b1b733e87d7595572f45912d18715e814a7a065",
+  "reference_frame": "vehicle_user_defined"
+}

@@ -1,7 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.idea/
+.venv/
+venv/
+*.egg-info/
+build/
 artifacts/
 recordings/
-*.egg-info/
-.pytest_cache/
-__pycache__/
-build/
-.idea/
+*.whl

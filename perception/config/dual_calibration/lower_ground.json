@@ -1,0 +1,234 @@
+{
+  "validated": false,
+  "image_size": [
+    640,
+    480
+  ],
+  "camera_matrix": [
+    [
+      302.089911374534,
+      0.0,
+      320.60962164096037
+    ],
+    [
+      0.0,
+      302.09947984095874,
+      240.16429400931636
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "dist_coeffs": [
+    0.07139533270457014,
+    -0.11506182416494097,
+    -0.0003530124050290447,
+    -0.00014901526777919789,
+    0.040438496838353544
+  ],
+  "ground_homography": [
+    [
+      1.779890844885352,
+      -0.007399720998043084,
+      -545.513543322133
+    ],
+    [
+      -0.015129637584344135,
+      -1.2677794208268014,
+      683.4401761735483
+    ],
+    [
+      0.00039178269574663893,
+      0.013549281372860926,
+      1.0
+    ]
+  ],
+  "valid_pixel_polygon": [
+    [
+      527.75,
+      215.75
+    ],
+    [
+      84.25,
+      222.75
+    ],
+    [
+      128.25,
+      39.75
+    ],
+    [
+      229.25,
+      18.25
+    ],
+    [
+      379.75,
+      11.75
+    ],
+    [
+      488.25,
+      32.75
+    ]
+  ],
+  "forward_range_mm": [
+    100.0,
+    500.0
+  ],
+  "bumper_forward_mm": 0.0,
+  "collection_center_left_mm": -0.0,
+  "intrinsic_source": "F:\\Learning coding\\opencv\\python hello\\camera_calibration.json",
+  "intrinsic_source_sha256": "ac251d52be147e56c22f5f0a334da395a7dfb9c43ef78b096554da60ed5c5be8",
+  "note": "实车地面映射，仅完成拟合；车体参考偏移需复核，独立点验收未完成。",
+  "coordinate_system": "x_right_y_forward",
+  "collection_center_right_mm": 0.0,
+  "ground_fit_points": [
+    {
+      "pixel": [
+        84.25,
+        222.75
+      ],
+      "ground_mm": [
+        -100.0,
+        100.0
+      ],
+      "user_xy_mm": [
+        -100.0,
+        100.0
+      ]
+    },
+    {
+      "pixel": [
+        527.75,
+        215.75
+      ],
+      "ground_mm": [
+        100.0,
+        100.0
+      ],
+      "user_xy_mm": [
+        100.0,
+        100.0
+      ]
+    },
+    {
+      "pixel": [
+        315.25,
+        153.75
+      ],
+      "ground_mm": [
+        0.0,
+        150.0
+      ],
+      "user_xy_mm": [
+        0.0,
+        150.0
+      ]
+    },
+    {
+      "pixel": [
+        151.25,
+        116.75
+      ],
+      "ground_mm": [
+        -100.0,
+        200.0
+      ],
+      "user_xy_mm": [
+        -100.0,
+        200.0
+      ]
+    },
+    {
+      "pixel": [
+        459.75,
+        107.75
+      ],
+      "ground_mm": [
+        100.0,
+        200.0
+      ],
+      "user_xy_mm": [
+        100.0,
+        200.0
+      ]
+    },
+    {
+      "pixel": [
+        128.25,
+        39.75
+      ],
+      "ground_mm": [
+        -200.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        -200.0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        311.75,
+        31.25
+      ],
+      "ground_mm": [
+        0.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        0.0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        488.25,
+        32.75
+      ],
+      "ground_mm": [
+        200.0,
+        400.0
+      ],
+      "user_xy_mm": [
+        200.0,
+        400.0
+      ]
+    },
+    {
+      "pixel": [
+        229.25,
+        18.25
+      ],
+      "ground_mm": [
+        -100.0,
+        500.0
+      ],
+      "user_xy_mm": [
+        -100.0,
+        500.0
+      ]
+    },
+    {
+      "pixel": [
+        379.75,
+        11.75
+      ],
+      "ground_mm": [
+        100.0,
+        500.0
+      ],
+      "user_xy_mm": [
+        100.0,
+        500.0
+      ]
+    }
+  ],
+  "ground_fit_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\lower_camera_calibration\\fits\\20261102_164833_033728_points.json",
+  "camera_role": "lower",
+  "calibration_scope": "vehicle_pending_validation",
+  "ground_image_source": "E:\\智能救援\\整体方案\\视觉\\perception\\artifacts\\lower_camera_calibration\\captures\\20261102_164456_679360_640x480_undistorted.png",
+  "ground_image_sha256": "a6227b15f9eb1ebba81314953dfd531d2a36b92f4406c5af9ad9cc20a5beebb7",
+  "intrinsic_config_sha256": "f3447fd977871ed5850b0ac40b1b733e87d7595572f45912d18715e814a7a065",
+  "reference_frame": "vehicle_user_defined"
+}

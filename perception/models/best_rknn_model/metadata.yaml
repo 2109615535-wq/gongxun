@@ -1,0 +1,27 @@
+description: Ultralytics YOLO11n model trained on F:\Learning coding\deep learning\ultralytics-8.3.163\datasets\visional3\visional3.yaml
+author: Ultralytics
+date: '2026-10-20T17:38:03.259343'
+version: 8.3.163
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: normal_material
+  1: core_material
+  2: casualty
+  3: hazard
+  4: gripper
+  5: red_material_zone
+  6: blue_material_zone
+  7: red_casualty_zone
+  8: blue_casualty_zone
+  9: gripper_closed
+args:
+  batch: 1
+  name: rk3588
+channels: 3

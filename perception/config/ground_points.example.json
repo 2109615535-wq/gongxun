@@ -1,0 +1,16 @@
+{
+  "image_size": [640, 480],
+  "coordinate_system": "x_right_y_forward",
+  "bumper_forward_mm": 120,
+  "collection_center_right_mm": 0,
+  "forward_range_mm": [250, 1400],
+  "points": [
+    {"pixel": [100, 400], "ground_mm": [-200, 350]},
+    {"pixel": [540, 400], "ground_mm": [200, 350]},
+    {"pixel": [220, 180], "ground_mm": [-200, 1300]},
+    {"pixel": [420, 180], "ground_mm": [200, 1300]},
+    {"pixel": [320, 260], "ground_mm": [0, 700]},
+    {"pixel": [320, 360], "ground_mm": [0, 430]}
+  ],
+  "note": "仅说明格式，所有坐标都必须替换成实测；像素坐标取去畸变图，地面坐标x向右y向前，单位mm。"
+}
