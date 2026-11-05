@@ -161,6 +161,7 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
         if (item_fields == 5u) {
             uint8_t present;
             if (!angle_number(tokens[offset+4], &obj->angle, &present)) return 0;
+            obj->angle_present = present;
             obj->angle_valid = (uint8_t)(present && obj->distance_valid);
         }
         if ((obj->distance_valid && obj->distance_mm < 0) || (*source == VSP_UPPER && obj->in_roi)) return 0;

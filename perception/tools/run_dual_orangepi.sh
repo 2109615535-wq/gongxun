@@ -3,6 +3,7 @@ set -eu
 
 project_directory=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 vision_python=${VISION_PYTHON:-/home/orangepi/venvs/yolo-rknn-board/bin/python}
+vision_controller_port=${VISION_CONTROLLER_PORT:-/dev/ttyS6}
 if [ ! -x "$vision_python" ]; then
     vision_python=python3
 fi
@@ -13,4 +14,5 @@ mkdir -p "$run_directory"
 exec "$vision_python" -m rescue_vision.dashboard \
     --config "$project_directory/config/dual_orangepi.json" \
     --host 0.0.0.0 --port 8080 --cameras \
+    --controller-port "$vision_controller_port" --controller-protocol vision_simple_v2 \
     --record "$run_directory/observations.jsonl" "$@"

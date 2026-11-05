@@ -30,6 +30,7 @@
 #include "encoder.h"
 #include "faraway.h"
 #include "decode_move.h"
+#include "vision_uart6.h"
 
 
 /* USER CODE END Includes */
@@ -91,20 +92,6 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-extern PID_t pid_motor1;
-
-static void motor_oled_task(void)
-{
-    /* Clear all four rows so shorter values do not leave old digits behind. */
-    OLED_ClearArea(0, 0, 128, 64);
-
-    OLED_Printf2(0, 0, "Target:%ld", (long)pid_motor1.target);
-    OLED_Printf2(0, 16, "Output:%ld", (long)pid_motor1.output);
-    OLED_Printf2(0, 32, "Speed:%ld",
-                 (long)encoder_get_speed(&encoder1));
-    OLED_Printf2(0, 48, "Y:%.2fcm", (double)y_body);
-}
-
 /* USER CODE END 0 */
 
 /**
@@ -157,17 +144,21 @@ int main(void)
     scheduler_add_task(hdz601_process, 5U, 1U);
 
     OLED_Init();
-    scheduler_add_task(motor_oled_task, 50U, 3U);
-    scheduler_add_task(OLED_Update, 50U, 3U);
+    vision_uart6_init();
+    if (!scheduler_add_task(vision_uart6_process, 5U, 0U) ||
+        !scheduler_add_task(vision_uart6_oled_task, 50U, 3U)) {
+        Error_Handler();
+    }
 
-    MotorEnable1(1);
-    MotorEnable2(1);
-    MotorEnable3(1);
-    MotorEnable4(1);
-    MotorSetSpeed1(50);
-    MotorSetSpeed2(50);
-    MotorSetSpeed3(50);
-    MotorSetSpeed4(50);
+    /* Stationary vision/OLED bring-up: no startup motor speed test. */
+    MotorEnable1(0);
+    MotorEnable2(0);
+    MotorEnable3(0);
+    MotorEnable4(0);
+    MotorSetSpeed1(0);
+    MotorSetSpeed2(0);
+    MotorSetSpeed3(0);
+    MotorSetSpeed4(0);
 
     position_encoder_init();
     scheduler_add_task(position_encoder, 20U, 2U);

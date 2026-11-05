@@ -1,5 +1,6 @@
 #include "hdz601.h"
 #include "faraway.h"
+#include "vision_uart6.h"
 
 #include <stddef.h>
 
@@ -115,6 +116,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     uint16_t next_head;
 
+    if (huart->Instance == USART6) {
+        vision_uart6_rx_complete(huart);
+        return;
+    }
     if (huart->Instance == UART5) {
         faraway_uart_rx_complete(huart);
         return;
@@ -136,6 +141,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
+    if (huart->Instance == USART6) {
+        vision_uart6_error(huart);
+        return;
+    }
     if (huart->Instance == UART5) {
         faraway_uart_error(huart);
         return;

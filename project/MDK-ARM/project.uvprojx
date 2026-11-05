@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include</IncludePath>
+              <IncludePath>../Core/Inc;../../perception/stm32;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -444,6 +444,16 @@
               <FileName>hdz601.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/hdz601.c</FilePath>
+            </File>
+            <File>
+              <FileName>vision_uart6.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/vision_uart6.c</FilePath>
+            </File>
+            <File>
+              <FileName>vision_simple.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../perception/stm32/vision_simple.c</FilePath>
             </File>
             <File>
               <FileName>stm32f4xx_it.c</FileName>

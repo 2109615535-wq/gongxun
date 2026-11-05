@@ -210,12 +210,13 @@ def observations_from_snapshot(snapshot):
                     status = "fault"
                     # break结束本路物体循环，遇到未知类别时将整路结果标为不可用。
                     break
-                point = row.get("position_mm") or {}
+                point = row.get("position_mm") or row.get("display_position_mm") or {}
                 # ground_range由现有测距模块计算，等于sqrt(x_right² + y_forward²)。
                 distance = point.get("ground_range")
                 distance_mm = (round(distance) if type(distance) in (int, float) and
                                math.isfinite(distance) and 0 <= distance <= 65535 else -1)
-                distance_valid = bool(distance_mm >= 0 and row.get("position_valid", False) and
+                distance_valid = bool(distance_mm >= 0 and row.get("position_mm") and
+                                      row.get("position_valid", False) and
                                       age_ms < 150)
                 # 使用已有地面坐标，不能用图像框中心偏移代替地面方位。
                 x, y = point.get("x_right"), point.get("y_forward")
