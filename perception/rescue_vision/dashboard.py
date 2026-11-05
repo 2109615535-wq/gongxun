@@ -20,6 +20,7 @@ from .runtime import LatestFrame
 # as给导入函数起别名，encode_simple明确表示这里使用的是简易协议编码器。
 from .simple_protocol import encode as encode_simple, observations_from_snapshot
 from .stm32_status import parse_motor_status
+from .task_protocol import MAX_LINE as TASK_MAX_LINE, decode as decode_task, encode as encode_task
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -317,12 +318,13 @@ class ControllerLink:
     初学者先看run()如何连接串口，再看send_simple()如何定时发送。
     """
     def __init__(self, state, port, protocol):
-        if protocol not in ("motor_debug_ascii", "rescue_json_v1", "vision_simple_v1", "vision_simple_v2"):
+        if protocol not in ("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", "vision_simple_v1", "vision_simple_v2"):
             raise ValueError("Unsupported controller protocol")
         self.state, self.port, self.protocol = state, port, protocol
         # Event作为停止开关，thread让串口收发与相机、网页同时运行。
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True, name="controller-link")
+        self.tx_seq = 0
 
     def run(self):
         """连接串口，启动收发流程，出错后每隔1秒重新连接。"""
@@ -330,7 +332,8 @@ class ControllerLink:
         while not self.stop.is_set():
             try:
                 # with在退出该段代码时自动关闭串口，timeout的单位是秒。
-                with serial.Serial(self.port, 115200, timeout=.05, write_timeout=.1) as port:
+                with serial.Serial(self.port, 115200, timeout=.05,
+                                   write_timeout=.5 if self.protocol == "rescue_json_v2" else .1) as port:
                     # lock保护多个线程共用的状态，防止同时修改时互相干扰。
                     with self.state.lock:
                         self.state.link.update(status="CONNECTED", protocol=self.protocol, error=None)
@@ -374,25 +377,47 @@ class ControllerLink:
                     pending.clear()
                     dropping = False
                 elif not dropping:
-                    if len(pending) >= 2048:
+                    if len(pending) >= TASK_MAX_LINE:
                         pending.clear()
                         dropping = True
                         with self.state.lock:
                             self.state.link["invalid_lines"] += 1
+                            if self.protocol == "rescue_json_v2":
+                                self.state.controller.update(status="INVALID")
                     else:
                         pending.append(byte)
-            if self.protocol == "rescue_json_v1" and time.monotonic() >= next_send:
-                payload = json.dumps(self.state.controller_observation(), separators=(",", ":"),
-                                     allow_nan=False).encode("ascii") + b"\n"
+            if self.protocol in ("rescue_json_v1", "rescue_json_v2") and time.monotonic() >= next_send:
+                if self.protocol == "rescue_json_v2":
+                    # 一次只发一条；按实际字节预算限速，避免115200串口积压旧结果。
+                    snapshot = self.state.snapshot()
+                    messages = snapshot["task_results"]
+                    phase = snapshot["task"].get("phase")
+                    result_type = ("verification" if phase in ("verify_before_transfer", "verify_after_transfer")
+                                   else "dock" if phase == "near_dock" else "delivery")
+                    messages = [m for m in messages if m["msg_type"] in ("status", "observation", result_type)]
+                    index = getattr(self, "tx_index", 0) % len(messages)
+                    message = dict(messages[index], seq=self.tx_seq)
+                    self.tx_index = index + 1
+                    self.tx_seq = (self.tx_seq + 1) & 0xFFFFFFFF
+                    payload = encode_task(message)
+                else:
+                    payload = json.dumps(self.state.controller_observation(), separators=(",", ":"),
+                                         allow_nan=False).encode("ascii") + b"\n"
                 if port.write(payload) != len(payload):
                     raise OSError("Incomplete observation write")
-                next_send = time.monotonic() + .1
+                interval = max(.05, len(payload) * 10 / (115200 * .7)) if self.protocol == "rescue_json_v2" else .1
+                next_send = time.monotonic() + interval
 
     def receive(self, line):
         """按协议处理一行主控输入，错误行只计数，供网页诊断使用。"""
         try:
-            if self.protocol == "rescue_json_v1":
-                self.state.update_controller(json.loads(line))
+            if self.protocol == "rescue_json_v2":
+                self.state.update_controller(decode_task(line))
+            elif self.protocol == "rescue_json_v1":
+                value = json.loads(line)
+                if not isinstance(value, dict) or value.get("msg_type") is not None:
+                    raise ValueError("Task messages require rescue_json_v2 CRC framing")
+                self.state.update_controller(value)
             elif self.protocol in ("vision_simple_v1", "vision_simple_v2"):
                 # 本版约定视觉向主控发送观测，收到任务输入时按未支持的消息处理。
                 raise ValueError("Simple protocol is observation-only")
@@ -404,6 +429,8 @@ class ControllerLink:
         except (ValueError, TypeError, KeyError):
             with self.state.lock:
                 self.state.link["invalid_lines"] += 1
+                if self.protocol == "rescue_json_v2":
+                    self.state.controller.update(status="INVALID")
 
     def close(self):
         """通知串口线程退出，并最多等待2秒完成退出。"""
@@ -521,8 +548,8 @@ def main(argv=None):
     parser.add_argument("--lower-source", help="覆盖下视USB摄像头编号或V4L2路径")
     parser.add_argument("--record", type=Path, help="新建JSONL检测日志，拒绝覆盖")
     parser.add_argument("--controller-port", help="显式启用串口接入")
-    # v2增加angle，v1保持旧格式；电机调试默认仍只收不发。
-    parser.add_argument("--controller-protocol", choices=("motor_debug_ascii", "rescue_json_v1", "vision_simple_v1", "vision_simple_v2"), default="motor_debug_ascii")
+    # rescue_json_v2为双向任务；vision_simple_v2为带angle的旧观测；默认只收遥测。
+    parser.add_argument("--controller-protocol", choices=("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", "vision_simple_v1", "vision_simple_v2"), default="motor_debug_ascii")
     parser.add_argument("--duration", type=float, help="限时运行，用于检查")
     args = parser.parse_args(argv)
     if args.duration is not None and not 0 < args.duration < 86400:

@@ -1,8 +1,8 @@
 # 交付目录与首次运行
 
-本版保留完整Python模块、双摄配置、网页、启动脚本、模型和当前简易协议C接收器。新增angle已通过主机验证，未在本次操作中部署香橙派、修改真实主控或提交GitHub。
+本版保留完整Python模块、双摄配置、网页、启动脚本、模型和简易观测协议C参考接收器。新增双向任务协议、连续目标编号、阶段隔离和ROI核验结果；未部署香橙派、修改真实主控或提交GitHub。
 
-本次51文件交付在隔离副本中通过103项相关主机测试，覆盖简易协议的真实C编译/互通、双摄状态及网页接口；模型SHA256、双路标定加载和4条RV2示例也已核对。测试源码仅用于本地验证，不放入交付目录；这些结果不代替串口和实车验收。
+当前离线回归源码位于tests目录，覆盖新版CRC、任务约束、序号/会话、阶段切换、目标关联和核验禁止放行。运行 `python -m unittest discover -s tests -v` 可复查，主机验证不代替串口和实车验收。
 
 ```text
 perception/
@@ -24,7 +24,9 @@ perception/
 │  │  └─ metadata.yaml           类别表与输入尺寸
 │  └─ rknn_compat.py             与现有板端一致的兼容脚本副本
 ├─ pyproject.toml                安装元数据与依赖声明
-├─ README.md                     主控文件、串口配置与UART参数
+├─ README.md                     当前能力与启动选项
+├─ TASK_PROTOCOL.md              双向任务协议与实现边界
+├─ tests/                        离线回归检查
 └─ START_HERE.md
 ```
 
@@ -60,6 +62,6 @@ sh tools/run_dual_orangepi.sh
 
 ## 使用范围
 
-当前入口为双摄`dashboard`；`config/vision.json`等其他配置保留为原流程示例，若运行旧单摄/标定命令，还需准备其各自输入数据。本版只交付三个双摄启动脚本，不附实验录像、照片、缓存、历史压缩包、旧二进制C接收器或自动测试源码。
+当前入口为双摄`dashboard`；`config/vision.json`等其他配置保留为原流程示例，若运行旧单摄/标定命令，还需准备其各自输入数据。保留三个双摄启动脚本与当前回归测试，不附实验录像、照片、缓存、历史压缩包或旧二进制C接收器。
 
-带angle的串口启动和主控接入见[README.md](README.md)，完整字段见[stm32/SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)。
+双向任务通信见 [TASK_PROTOCOL.md](TASK_PROTOCOL.md)，启动选项见 [README.md](README.md)。现有vision_simple.c/.h只支持RV1/RV2；启用rescue_json_v2前主控需要适配。库口姿态、入仓和投放成功接口当前保持无效，不能用于放行。

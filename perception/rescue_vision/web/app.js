@@ -111,7 +111,7 @@ function renderCamera(role, camera) {
   for (const item of camera.detections || []) {
     const chip = document.createElement("span");
     chip.className = `detection ${item.name === "hazard" ? "hazard" : ""}`;
-    chip.textContent = `${names[item.name] || item.name} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
+    chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
     detections.append(chip);
   }
   if (!detections.childElementCount) detections.textContent = "暂无识别结果";
@@ -133,7 +133,7 @@ function render(state) {
   byId("task-name").textContent = names[state.task.expected] || "等待任务";
   byId("task-source").textContent =
     state.task.source === "controller"
-      ? `主控任务 ${state.task.task_id}`
+      ? `主控任务 ${state.task.task_id} · ${state.task.phase || state.task.state}`
       : state.task.expected
         ? `网页联调 · ${state.task.state || "IDLE"}`
         : `等待目标 · ${state.task.state || "IDLE"}`;
@@ -149,7 +149,7 @@ function render(state) {
     : "控制条件未满足";
   byId("motion-state").className = nav.motion_valid ? "positive" : "warning";
   byId("hazard-state").textContent = nav.hazard_blocked
-    ? "检测到危险或未知类别"
+    ? "当前阶段禁止继续或观测待验证"
     : "测距与核验按验证状态输出";
   byId("hazard-state").className = nav.hazard_blocked ? "danger" : "";
   byId("controller-status").textContent = label(state.controller.status);
@@ -183,6 +183,16 @@ function render(state) {
       : "已配置 · 待实车验证";
   byId("serial-state").textContent = label(state.link.status);
   byId("serial-state").title = state.link.error || "";
+  const results = state.task_results || [];
+  const statusResult = results.find((r) => r.msg_type === "status");
+  const verification = results.find((r) => r.msg_type === "verification");
+  byId("task-ack").textContent = statusResult?.ack_seq == null ? "等待任务" : `#${statusResult.ack_seq}`;
+  byId("verification-result").textContent = verification?.result_valid
+    ? `${verification.roi_count} 个 · ${verification.danger_flag ? "禁止继续" : "核验通过"}`
+    : "结果无效 · 禁止继续";
+  byId("verification-result").title = verification?.danger_reason || "等待观测";
+  byId("dock-result").textContent = "姿态待验证 · 禁止入仓";
+  byId("delivery-result").textContent = "等待有效投放确认";
   byId("last-update").textContent =
     `最近更新 ${new Date().toLocaleTimeString("zh-CN")}`;
 }
@@ -206,6 +216,10 @@ function disconnected() {
   byId("task-name").textContent = "任务状态未知";
   byId("controller-state").textContent = "主控状态未知";
   byId("controller-status").textContent = "连接中断";
+  byId("task-ack").textContent = "连接中断";
+  byId("verification-result").textContent = "结果无效 · 禁止继续";
+  byId("dock-result").textContent = "姿态待验证 · 禁止入仓";
+  byId("delivery-result").textContent = "等待有效投放确认";
 }
 
 async function poll() {

@@ -12,6 +12,8 @@ from .board_detector import validate_uvc_controls
 from .detector import box_iou
 from .geometry import GroundCalibration, green_contact, touches_border
 from .types import TARGET_TYPES
+from .task_protocol import task_key as make_task_key
+from .tracking import TargetTracker
 
 
 MATERIALS = {"normal_material", "core_material", "casualty"}
@@ -192,6 +194,8 @@ class CameraPerception:
         self.grip = Confirmation(cfg["confirm_frames"], cfg["association_iou"])
         self.last_stamp = None
         self.task_key = None
+        self.tracker = TargetTracker(role, cfg["association_iou"])
+        self.tracking_task = None
         self.projector = GreenSession(
             calibration, scope="vehicle_measurement_only",
             output_range_mm=cfg["cameras"][role]["output_range_mm"],
@@ -200,23 +204,35 @@ class CameraPerception:
         if role == "lower" and roi and (roi[2] > calibration.size[0] or roi[3] > calibration.size[1]):
             raise ValueError("夹爪ROI超出下视标定分辨率")
 
-    def reset(self):
+    def reset(self, *, tracks=True):
         self.selection.reset()
         self.grip.reset()
+        if tracks:
+            self.tracker.reset()
 
     def process(self, image, detections, captured, now, task):
-        key = tuple(task.get(k) for k in ("session_id", "task_id", "expected", "source", "state"))
+        key = make_task_key(task)
+        tracking_task = (task.get("session_id"), task.get("task_id"), task.get("source"))
         age = (now - captured) * 1000
-        if key != self.task_key or (self.last_stamp is not None and
-                                   captured - self.last_stamp > self.cfg["max_frame_age_ms"] / 1000):
+        gap = self.last_stamp is not None and captured - self.last_stamp >= self.cfg["max_frame_age_ms"] / 1000
+        if tracking_task != self.tracking_task or gap:
             self.reset()
+        elif key != self.task_key:
+            self.reset(tracks=False)
         self.task_key = key
+        self.tracking_task = tracking_task
         result = {"role": self.role, "status": "OK", "captured_monotonic": captured,
                   "age_ms": age, "detections": [], "selected": None,
                   "calibration_quality": self.quality, "motion_valid": False,
                   "hazard_blocked": False, "task_key": list(key),
+                  "observation_yaw_deg": (task.get("yaw_deg") if
+                                          task.get("received_monotonic", captured) <= captured else None),
                   "gripper": {"status": "NOT_APPLICABLE", "match": False, "count": 0}}
-        if (not math.isfinite(age) or not 0 <= age <= self.cfg["max_frame_age_ms"] or
+        if captured < task.get("activated_monotonic", -math.inf):
+            self.reset(tracks=False)
+            result["status"] = "WAITING_TASK_FRAME"
+            return result
+        if (not math.isfinite(age) or not 0 <= age < self.cfg["max_frame_age_ms"] or
                 (self.last_stamp is not None and captured <= self.last_stamp)):
             self.reset()
             result["status"] = "STALE"
@@ -242,9 +258,15 @@ class CameraPerception:
         roi = self.cfg["gripper"]["roi_raw_xyxy"] if self.role == "lower" else None
         for d in detections:
             inside_grip = bool(roi and roi_coverage(d.box, roi) >= self.cfg["grip_coverage"])
+            intersects = bool(roi and roi_coverage(d.box, roi) > 0)
+            occluded = touches_border(d.box, self.calibration.size) or any(
+                other is not d and other.name in TARGET_TYPES and box_iou(d.box, other.box) > .12
+                for other in detections)
             row = {"name": d.name, "confidence": d.confidence, "box": list(d.box),
                    "position_mm": None, "position_quality": "unavailable", "angle": None,
                    "inside_gripper_roi": inside_grip, "position_valid": False,
+                   "intersects_gripper_roi": intersects, "occluded": occluded,
+                   "roi_clipped": bool(intersects and roi_coverage(d.box, roi) < 1 - 1e-6),
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
             # An object held above the ground must never be projected through ground H.
             if d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
@@ -270,9 +292,16 @@ class CameraPerception:
                         row["position_valid"] = (self.calibration.valid and not near and
                                                  d.name == "normal_material")
             result["detections"].append(row)
+        self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
         result["hazard_blocked"] = any(d.name == "hazard" or d.name not in KNOWN for d in detections)
         expected = task.get("expected")
-        candidates = [row for row in result["detections"] if row["name"] == expected
+        allowed = task.get("allowed_kinds")
+        allowed_names = {"green": "normal_material", "black": "core_material", "orange": "casualty"}
+        candidate_names = {expected} if expected else {allowed_names[k] for k in (allowed or [])}
+        locked = task.get("locked_target_id", 0)
+        candidates = [row for row in result["detections"] if row["name"] in candidate_names
+                      and (allowed is None or row["name"] in {allowed_names[k] for k in allowed})
+                      and (not locked or row["target_id"] == locked)
                       and not row["inside_gripper_roi"]]
         if candidates:
             if self.selection.box is None:
@@ -280,8 +309,8 @@ class CameraPerception:
             else:
                 selected = max(candidates, key=lambda r: box_iou(self.selection.box, r["box"]))
             selected = dict(selected)
-            selected["confirmed"] = self.selection.update((key, expected), selected["box"])
-            if selected["position_mm"] is None and expected in MATERIALS:
+            selected["confirmed"] = self.selection.update((key, selected["target_id"]), selected["box"])
+            if selected["position_mm"] is None and selected["name"] in MATERIALS:
                 self.selection.reset()
                 selected["confirmed"] = False
             selected["confirm_count"] = self.selection.count
@@ -289,43 +318,62 @@ class CameraPerception:
             result["motion_valid"] = (selected["confirmed"] and selected["position_valid"]
                                       and age <= self.cfg["control_max_age_ms"]
                                       and not result["hazard_blocked"] and task.get("source") == "controller")
+            if task.get("contract") == "rescue_json_v2":
+                result["motion_valid"] &= task.get("phase") in {"search", "align", "approach"} and task.get("mechanism_state") not in {"unknown", "fault"}
         else:
             self.selection.reset()
         if self.role == "lower":
-            result["gripper"] = self.check_gripper(result["detections"], expected, key, image)
+            result["gripper"] = self.check_gripper(result["detections"], expected, key, image,
+                                                    locked_target_id=locked)
             if result["gripper"].get("unknown_regions"):
                 result.update(hazard_blocked=True, motion_valid=False)
         return result
 
-    def check_gripper(self, rows, expected, task_key, image):
-        value = {"status": "UNCONFIGURED", "match": False, "count": 0, "observed": None}
-        if self.cfg["gripper"]["roi_raw_xyxy"] is None:
+    def check_gripper(self, rows, expected, task_key, image, *, locked_target_id=0):
+        # count仍表示连续帧数，roi_count才是机构区域的实际物体数量。
+        roi = self.cfg["gripper"]["roi_raw_xyxy"]
+        objects = [row for row in rows if row.get("intersects_gripper_roi", row["inside_gripper_roi"])
+                   and row["name"] not in {"gripper", "gripper_closed"} | ZONES]
+        value = {"status": "UNCONFIGURED", "match": False, "count": 0, "observed": None,
+                 "roi_count": len(objects), "roi_kinds": [row["name"] for row in objects],
+                 "result_valid": False, "danger_flag": 1, "danger_reason": "roi_unverified"}
+
+        def reject(status, reason, *, valid=False):
+            self.grip.reset()
+            return dict(value, status=status, danger_reason=reason,
+                        result_valid=bool(valid and self.cfg["gripper"]["validated"]))
+
+        if roi is None:
             self.grip.reset()
             return value
         if expected not in MATERIALS:
-            self.grip.reset()
-            return dict(value, status="WAITING_TASK")
-        objects = [row for row in rows if row["inside_gripper_roi"]
-                   and row["name"] not in {"gripper", "gripper_closed"}]
+            return reject("WAITING_TASK", "expected_kind_unknown")
+        if any(row["name"] not in KNOWN for row in objects):
+            return reject("UNCLASSIFIED_OBJECT", "unknown_object")
         if any(row["name"] == "hazard" for row in objects):
-            self.grip.reset()
-            return dict(value, status="HAZARD", observed="hazard")
+            return dict(reject("HAZARD", "hazard", valid=True), observed="hazard")
         if len(objects) > 1:
-            self.grip.reset()
-            return dict(value, status="AMBIGUOUS")
-        unexplained = unclassified_dark_regions(image, rows, self.cfg["gripper"]["roi_raw_xyxy"],
+            return reject("AMBIGUOUS", "multiple_objects", valid=True)
+        if any(not row["inside_gripper_roi"] or row.get("roi_clipped") or row.get("occluded") for row in objects):
+            return reject("AMBIGUOUS", "occluded")
+        unexplained = unclassified_dark_regions(image, rows, roi,
                                                 self.cfg["gripper"].get("dark_guard", {}))
         if unexplained:
-            self.grip.reset()
-            return dict(value, status="AMBIGUOUS" if objects else "UNCLASSIFIED_OBJECT",
-                        unknown_regions=unexplained)
+            return dict(reject("UNCLASSIFIED_OBJECT", "unknown_object"), unknown_regions=unexplained)
         candidate = objects[0] if objects else None
+        if locked_target_id and (candidate is None or candidate.get("target_id") != locked_target_id):
+            return reject("MISMATCH", "locked_target_lost")
         observed = candidate["name"] if candidate else None
         outcome = "EMPTY" if candidate is None else ("MATCH" if observed == expected else "MISMATCH")
-        stable = self.grip.update((task_key, outcome, observed), candidate["box"] if candidate else None)
+        stable = self.grip.update((task_key, outcome, observed, candidate.get("target_id") if candidate else None),
+                                  candidate["box"] if candidate else None)
         status = outcome if stable else "CONFIRMING"
         validated = self.cfg["gripper"]["validated"]
         if stable and not validated:
             status += "_UNVERIFIED"
+        valid = stable and validated
+        match = valid and outcome == "MATCH"
+        reason = ("roi_unverified" if not validated else "confirming" if not stable else
+                  "none" if match else "empty_roi" if candidate is None else "kind_mismatch")
         return dict(value, status=status, observed=observed, count=self.grip.count,
-                    match=stable and outcome == "MATCH" and validated)
+                    match=match, result_valid=valid, danger_flag=int(not match), danger_reason=reason)

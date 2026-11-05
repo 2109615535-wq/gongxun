@@ -9,10 +9,13 @@ import threading
 import time
 
 from .dual import ROLES, SELECTABLE
+from .task_protocol import parse_task, results_from_snapshot, task_key
 
 
 def parse_controller_task(value):
     """New, explicitly versioned integration contract, not existing UART5 telemetry."""
+    if isinstance(value, dict) and value.get("msg_type") == "task":
+        return parse_task(value)
     if not isinstance(value, dict) or value.get("type") != "rescue_task_v1":
         raise ValueError("Expected rescue_task_v1")
     for key in ("session_id", "task_id", "state"):
@@ -42,6 +45,7 @@ class DashboardState:
         self.debug_state = "IDLE"
         self.debug_revision = 0
         self.gripper_revision = 0
+        self.task_revision = 0
         self.model = {"status": "NOT_LOADED"}
         self.link = {"status": "DISCONNECTED", "protocol": None, "invalid_lines": 0}
 
@@ -99,11 +103,20 @@ class DashboardState:
             old = self.controller
             fresh = now - old.get("received_monotonic", -math.inf) <= self.config["controller_timeout_ms"] / 1000
             if task["session_id"] == old.get("session_id"):
-                if task["seq"] <= old["seq"]:
+                delta = (task["seq"] - old["seq"]) & 0xFFFFFFFF
+                if not 0 < delta < 0x80000000:
                     raise ValueError("Duplicate or out-of-order controller sequence")
             elif fresh:
                 raise ValueError("A different controller session is still active")
-            self.controller = dict(task, source="controller", status="CONNECTED", received_monotonic=now)
+            candidate = dict(task, source="controller")
+            # seq/yaw只更新心跳；失联恢复及阶段改变必须等待新采集帧。
+            same = (fresh and old.get("status") == "CONNECTED" and
+                    task_key(candidate)[:-1] == task_key(old)[:-1])
+            if not same:
+                self.task_revision += 1
+            self.controller = dict(candidate, status="CONNECTED", received_monotonic=now,
+                                   activation_id=self.task_revision,
+                                   activated_monotonic=old["activated_monotonic"] if same else now)
 
     def task(self):
         with self.lock:
@@ -155,7 +168,7 @@ class DashboardState:
         with self.lock:
             now = self.clock()
             task = self.task()
-            key = [task.get(k) for k in ("session_id", "task_id", "expected", "source", "state")]
+            key = list(task_key(task))
             cameras = deepcopy(self.cameras)
             for role, camera in cameras.items():
                 captured = camera.get("captured_monotonic")
@@ -167,11 +180,15 @@ class DashboardState:
                     camera["motion_valid"] = False
                 if age is not None and not 0 <= age <= self.config["max_frame_age_ms"]:
                     camera.update(status="STALE", detections=[], selected=None, motion_valid=False,
-                                  hazard_blocked=False, gripper={"status": "STALE", "match": False, "count": 0})
-                if camera.get("task_key") != key:
+                                  hazard_blocked=True, gripper={"status": "STALE", "match": False, "count": 0})
+                current = (camera.get("task_key") == key and captured is not None and
+                           captured >= task.get("activated_monotonic", -math.inf))
+                camera["task_current"] = current
+                if not current:
                     camera.update(selected=None, motion_valid=False,
                                   gripper={"status": "WAITING_TASK_FRAME", "match": False, "count": 0})
                 if role == "lower" and camera.get("gripper_revision", 0) != self.gripper_revision:
+                    camera["task_current"] = False
                     camera.update(selected=None, motion_valid=False,
                                   gripper={"status": "WAITING_TASK_FRAME", "match": False, "count": 0})
             controller = deepcopy(self.controller)
@@ -186,7 +203,8 @@ class DashboardState:
                 source = "lower" if selected and selected.get("position_mm") else None
             if source is None:
                 selected = None
-            blocked = any(camera.get("hazard_blocked", False) for camera in cameras.values())
+            blocked = any(camera.get("hazard_blocked", False) or camera.get("status") != "OK" or
+                          not camera.get("task_current") for camera in cameras.values())
             cameras_ready = all(camera["status"] == "OK" for camera in cameras.values())
             live_sources = all(camera.get("mode") != "video" for camera in cameras.values())
             control_fresh = all(camera.get("age_ms") is not None and
@@ -199,7 +217,7 @@ class DashboardState:
                           0 <= lower["age_ms"] <= self.config["max_frame_age_ms"] and live_sources)
             grip["controller_match"] = bool(grip["match"] and controller["status"] == "CONNECTED"
                                              and cameras_ready and grip_fresh and not blocked)
-            return {"schema": "dual_camera_v1", "server_monotonic": now,
+            result = {"schema": "dual_camera_v1", "server_monotonic": now,
                     "coordinate_system": "x_right_y_forward", "unit": "mm",
                     "cameras": cameras, "controller": controller, "task": task,
                     "link": deepcopy(self.link), "model": deepcopy(self.model),
@@ -208,6 +226,14 @@ class DashboardState:
                     "navigation": {"source": source, "selected": selected, "motion_valid": motion,
                                    "hazard_blocked": blocked, "upper_primary": True},
                     "gripper": grip}
+            result["task_results"] = results_from_snapshot(result)
+            if task.get("contract") == "rescue_json_v2":
+                status = result["task_results"][0]
+                verification = result["task_results"][3]
+                result["navigation"]["motion_valid"] &= bool(status["vision_ready"] and not status["danger_flag"])
+                result["navigation"]["hazard_blocked"] |= bool(status["danger_flag"])
+                result["gripper"]["controller_match"] = bool(verification["result_valid"] and not verification["danger_flag"])
+            return result
 
     def controller_observation(self):
         """Compact JSON payload suitable for 115200 baud at 10Hz."""

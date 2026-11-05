@@ -2,6 +2,8 @@
 
 本文件位于`stm32/`，下文命令均在`perception/`根目录执行。
 
+双向任务/状态/核验使用新增 `rescue_json_v2`，详见 [TASK_PROTOCOL.md](../TASK_PROTOCOL.md)。本目录C文件仍是RV1/RV2观测接收器，不能解析双向任务协议。
+
 2026-11-04：在现有简易协议中增加地面方位参数`angle`，新版标识为`RV2`，串口选项为`vision_simple_v2`。视觉发送识别结果，主控接收物体列表；不包含任务下发、状态机回传或动作指令。实际主控工程、板端运行服务和GitHub工作副本均未在本次修改。
 
 旧`vision_simple_v1`仍发送原来的`RV1`四字段格式，不发送angle。新版C接收器接受RV1和RV2；主控须同时更新`vision_simple.c/.h`并重新编译，旧接收器不能解析RV2。原二进制`vision_v1`和JSON `rescue_json_v1`也是独立选项，不能交叉使用接收器。Python `encode()`默认生成RV2，旧端显式调用`encode(observation, version=1)`。
