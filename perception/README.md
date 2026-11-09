@@ -1,33 +1,40 @@
-# 视觉端串口接入（含 angle）
+# RV2（Rescue Vision 2）（含 angle）
 本文规定智能救援项目中，香橙派视觉端与 STM32 主控端之间的 UART 通信接口。香橙派负责识别和核验，STM32 负责运动控制与任务状态切换。本文不包含电机驱动和底层运动控制。
 
-## 1. 主控端使用哪些文件
+## 1. 职责分配与相关文件
+STM32 负责下发任务与实际机构状态，检查视觉结果是否有效，再决定转向、前进、机构动作和状态切换
 
+STM32端负责接受与发送信息的文件
 - [stm32/vision_simple.h](stm32/vision_simple.h)：类别、观测结构、`angle/angle_valid`及C接收接口。
 - [stm32/vision_simple.c](stm32/vision_simple.c)：CRC校验、逐行解析、双路独立的新帧检查和超时处理。
 - [stm32/SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)：RV2完整字段、校验样例和接入说明。
 
-将两个C文件一起加入主控工程并重新编译。初始化调用`VSP_Init`，主循环从现有UART队列取出字节及到达时间后调用`VSP_Feed`，周期调用`VSP_Get`分别读取上下视。中断/DMA只入队，模块接口在同一任务上下文调用；无新数据时仍需周期读取，以处理超时。
+香橙派负责接收任务要求，返回目标类别、距离、角度，以及当前阶段的核验结果。
 
-`angle`单位为度，前方0、右正左负。主控必须检查`angle_valid`，不能把未知角度当成0°。旧RV1仍可接收，但没有angle；本版无需旧二进制C接收器。
 
-## 2. 视觉端串口连接配置
+## 2. 硬件连接与UART参数（双端）
 
 采用3.3V TTL，视觉TX接主控所选UART的RX，双方GND共地。当前只发送观测；预留双向时再交叉连接另一对TX/RX。
 
-香橙派在`perception/`根目录执行，设备名替换为实际串口：
+硬件连接
+电平：3.3V TTL
+STM32串口：UART6
+STM32 TX引脚：
+STM32 RX引脚：
+香橙派串口设备：UART6
 
-```bash
-sh tools/run_dual_orangepi.sh --controller-port /dev/ttyUSB0 --controller-protocol vision_simple_v2
-```
+香橙派 UART6_TX(物理13脚，左边排针向下数第7个) → STM32 UART6 RX
+香橙派 UART6_RX(物理11脚，左边排针向下数第6个) ← STM32 UART6 TX
+香橙派 6脚 GND — STM32 GND
 
-电脑端示例，COM3和相机编号按实际设备替换：
+包头：RV2
+波特率：115200
+数据位：8
+校验位：无
+停止位：1
+硬件流控：无
+完整数据实例：RV2,upper,42,86,ok,1,green,450,1,0,30.00*CBDC\n
 
-```powershell
-python -m rescue_vision.dashboard --cameras --upper-source 1 --lower-source 2 --controller-port COM3 --controller-protocol vision_simple_v2
-```
-
-`vision_simple_v2`发送带angle的RV2；`vision_simple_v1`保留旧RV1四字段布局。两路分别约每100ms尝试发送，空场、过期或故障也发送状态。默认`motor_debug_ascii`只接收原遥测，需在主控接收器集成后显式启用新协议。
 
 ## 3. 主控端UART初始化参数
 
