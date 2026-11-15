@@ -132,6 +132,29 @@ GPIO选择对应USART复用功能，开启接收中断或DMA。复用现有HAL�
 
 不需要另外设计“进入状态2指令”。香橙派返回 `delivery_confirmed`，由STM32核对任务后决定是否解除首轮限制并切换状态。
 
+### 物体类别字段 `kind`
+
+`kind` 表示物体类别，串口中使用以下8种英文取值：
+
+- `green`：普通物块，模型内部名称为 `normal_material`。
+- `black`：核心物块，模型内部名称为 `core_material`。
+- `orange`：伤员物块，模型内部名称为 `casualty`。
+- `blue`：危险物块，模型内部名称为 `hazard`。
+- `red_material_zone`：红方物资安全区。
+- `red_casualty_zone`：红方伤员安全区。
+- `blue_material_zone`：蓝方物资安全区。
+- `blue_casualty_zone`：蓝方伤员安全区。
+
+四类安全区的模型内部名称与串口取值相同。香橙派与STM32通信时统一使用上述 `kind` 取值，不发送中文名称；夹爪本体 `gripper/gripper_closed` 不作为物资发送。
+
+普通物块的JSON类别字段片段如下（不是完整报文）：
+
+```json
+"kind": "green"
+```
+
+RV2使用逗号分隔格式，普通物块对应的类别位置填写 `green`，完整样例见第2节。
+
 ## 5. 上电发送与OLED联调
 
 2026-11-05已在Orange Pi 5 Ultra板端配置并重启核验，当前IP为 `10.50.6.250`。部署目录为 `/home/orangepi/rescue_vision_dual`，使用 `/home/orangepi/venvs/yolo-rknn-board/bin/python`。上下视相机正常，串口协议为 `vision_simple_v2`。
