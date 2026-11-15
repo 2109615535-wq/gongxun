@@ -28,6 +28,7 @@
 #define motor4_direction (-1)
 
 #define MOTOR_SPEED_MAX 1000
+#define MOTOR_WHEEL_LIMIT 900 /* 90% maximum; 1000 remains the normalization/PWM denominator. */
 #define ERROR_INT_MAX 3000
 
 #define kp_motor1 2.0f
@@ -48,6 +49,7 @@
 
 /* Call after GPIO and TIM1 initialization. All motors start at zero duty. */
 void Motor_Init(void);
+void Motor_SetDriveEnabled(uint8_t enable);
 void MotorEnable1(uint8_t Enable);
 void MotorEnable2(uint8_t Enable);
 void MotorEnable3(uint8_t Enable);
@@ -55,8 +57,9 @@ void MotorEnable4(uint8_t Enable);
 
 
 void motor_process(void);
-/* Speed: -1000..1000 (PWM duty command, not measured RPM).
- * Positive: forward; negative: reverse; zero: PWM off.
+/* Speed: normalized encoder speed PID target; magnitude limited to 900 (90%).
+ * Positive: forward; negative: reverse; zero: zero speed target.
+ * Any MotorSetSpeed call restores speed PID control for all four motors.
  * Forward PH: high for direction +1, low for direction -1.
  * Motors 1..4 use TIM1 CH4, CH3, CH2, CH1 respectively; EN is active high.
  * PH/EN: PC0/PE13, PC1/PE11, PC2/PE9, PC3/PE7 respectively.
@@ -65,5 +68,11 @@ void MotorSetSpeed1(int32_t Speed);
 void MotorSetSpeed2(int32_t Speed);
 void MotorSetSpeed3(int32_t Speed);
 void MotorSetSpeed4(int32_t Speed);
+
+/* Fixed PWM: -150 means reverse at 15%; requests above 900 scale all four together.
+ * Bypasses speed PID; encoder sampling continues. Zero means PWM off.
+ * Applied by motor_process() on its next scheduled run.
+ */
+void MotorSetPWM(int32_t pwm1, int32_t pwm2, int32_t pwm3, int32_t pwm4);
 
 #endif

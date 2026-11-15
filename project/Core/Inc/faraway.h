@@ -5,6 +5,11 @@
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
 
+/* VISION_STATIC_TEST=1 overrides ordinary telemetry: vision_xy JSON at 5 Hz.
+ * Only GET is accepted; all other commands return ERR,STATIC_TEST.
+ * tools/vision_xy.html plots all upper-camera coordinates (cm), including
+ * explicitly invalid estimates; stale/unknown coordinates are never plotted. */
+
 /* UART5: 115200, 8N1; PC12 TX, PD2 RX. Connect TX/RX crossed and share GND.
  * ASCII protocol, one command per line (LF, CRLF or CR), case sensitive:
  *   TARGET,500       Set all four motor target speeds, integer -1000..1000.

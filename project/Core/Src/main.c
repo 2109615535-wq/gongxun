@@ -30,6 +30,9 @@
 #include "encoder.h"
 #include "faraway.h"
 #include "decode_move.h"
+#include "imu.h"
+#include "vision.h"
+#include "servo.h"
 
 
 /* USER CODE END Includes */
@@ -98,11 +101,11 @@ static void motor_oled_task(void)
     /* Clear all four rows so shorter values do not leave old digits behind. */
     OLED_ClearArea(0, 0, 128, 64);
 
-    OLED_Printf2(0, 0, "Target:%ld", (long)pid_motor1.target);
-    OLED_Printf2(0, 16, "Output:%ld", (long)pid_motor1.output);
-    OLED_Printf2(0, 32, "Speed:%ld",
-                 (long)encoder_get_speed(&encoder1));
-    OLED_Printf2(0, 48, "Y:%.2fcm", (double)y_body);
+    OLED_Printf2(0, 0, "Y:%.2fcm", (double)y_body);
+    OLED_Printf2(0, 16, "X:%.2fcm", (double)x_body);
+    OLED_Printf2(0, 32, "A:%.2fdeg",
+                 (double)(angle_body * 180.0f / 3.1415926f));
+    OLED_Printf2(0, 48, "Servo:%d", (int)servo_angle);
 }
 
 /* USER CODE END 0 */
@@ -149,36 +152,45 @@ int main(void)
     MX_USART6_UART_Init();
     /* USER CODE BEGIN 2 */
     scheduler_init();
+    scheduler_add_task(Key_Update, 10U, 1U);
 
     Motor_Init();
+    Servo_Init();
+    scheduler_add_task(Servo_Update, 20U, 0U);
     encoder_init();
 
     hdz601_init();
     scheduler_add_task(hdz601_process, 5U, 1U);
+    scheduler_add_task(imu_process, 5U, 2U);
 
     OLED_Init();
     scheduler_add_task(motor_oled_task, 50U, 3U);
     scheduler_add_task(OLED_Update, 50U, 3U);
-
-    MotorEnable1(1);
-    MotorEnable2(1);
-    MotorEnable3(1);
-    MotorEnable4(1);
-    MotorSetSpeed1(50);
-    MotorSetSpeed2(50);
-    MotorSetSpeed3(50);
-    MotorSetSpeed4(50);
+    
 
     position_encoder_init();
+
+    MotorEnable1(0);
+    MotorEnable2(0);
+    MotorEnable3(0);
+    MotorEnable4(0);
     scheduler_add_task(position_encoder, 20U, 2U);
     scheduler_add_task(motor_process, 20U, 2U);
+
 
 
     if (!faraway_init()) {
         Error_Handler();
     }
-    scheduler_add_task(faraway_process, 50U, 2U);
+    scheduler_add_task(faraway_process, 5U, 2U);
     scheduler_add_task(faraway_report, 50U, 3U);
+
+    if (!vision_init() || !scheduler_add_task(vision_process, 5U, 1U)) {
+        Error_Handler();
+    }
+
+    scheduler_add_task(move, 20U, 3U);
+    
 
     /* USER CODE END 2 */
 
@@ -190,6 +202,7 @@ int main(void)
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
+        
         scheduler_run();
         /* USER CODE END 3 */
     }
@@ -883,7 +896,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : key1_Pin key4_Pin key3_Pin key2_Pin */
   GPIO_InitStruct.Pin = key1_Pin|key4_Pin|key3_Pin|key2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : OLED_SCL_Pin OLED_SDA_Pin */

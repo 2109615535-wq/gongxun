@@ -421,6 +421,21 @@
               <FilePath>../Core/Src/servo.c</FilePath>
             </File>
             <File>
+              <FileName>key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/key.c</FilePath>
+            </File>
+            <File>
+              <FileName>vision.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/vision.c</FilePath>
+            </File>
+            <File>
+              <FileName>vision_simple.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/vision_simple.c</FilePath>
+            </File>
+            <File>
               <FileName>decode_move.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/decode_move.c</FilePath>
@@ -444,6 +459,11 @@
               <FileName>hdz601.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/hdz601.c</FilePath>
+            </File>
+            <File>
+              <FileName>imu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/imu.c</FilePath>
             </File>
             <File>
               <FileName>stm32f4xx_it.c</FileName>
