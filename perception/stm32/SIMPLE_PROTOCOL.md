@@ -44,6 +44,8 @@ RV2,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,
 
 有估算角度但`distance_valid=0`时，角度也不能用于控制。C端增加`float angle`及`angle_valid`：有数值且位置/距离有效时才置位，累计年龄达到150ms后与`distance_valid`一起清零。旧RV1或`NA`结果的`angle_valid=0`；不能仅因`angle==0`就认为目标位于正前方。
 
+C端的 `angle_present` 记录RV2是否提供数值，数值0度对应1，NA或RV1对应0，此字段由解析器计算。当前OLED只显示green，在300ms观测窗口内显示X、Y、angle和distance，X=distance×sin(angle)、Y=distance×cos(angle)，X右正、Y前正。有效标志为0的数值带 `~` 前缀，缺失数值显示NA，过期清除。green范围外推作为显示估计发送，distance_valid仍为0。
+
 `CRC16` 为4位十六进制CCITT-FALSE校验，poly=0x1021、init=0xFFFF、不反射、xorout=0，标准 `123456789` 为0x29B1。校验范围从 `RV2`（旧版为`RV1`）的R至星号前最后一个字符，星号与换行不参与。每行不含换行最多512字节。
 
 完整可解析的合成样例（含真实校验值，每行末尾需加LF）：

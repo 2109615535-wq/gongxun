@@ -30,6 +30,7 @@ typedef struct {
     uint8_t in_roi;         /* 1表示在下视夹爪区域内，夹持成功需另外判断。 */
     float angle;           /* RV2地面方位角，单位度，右正左负；无方位时为0。 */
     uint8_t angle_valid;    /* 有angle且距离/位置验证与150ms新鲜度均满足时为1。 */
+    uint8_t angle_present;  /* RV2是否提供角度数值，供显示估计值；NA和RV1为0。 */
 } VSP_Object;
 
 /* 一路相机的一次观测，程序只遍历count个objects条目。 */

@@ -1,0 +1,21 @@
+[Unit]
+Description=Rescue dual-camera vision and RV2 UART sender
+After=local-fs.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=orangepi
+Group=orangepi
+SupplementaryGroups=video dialout
+WorkingDirectory=/home/orangepi/rescue_vision_dual
+Environment=PYTHONUNBUFFERED=1
+Environment=VISION_CONTROLLER_PORT=/dev/ttyS6
+ExecStart=/bin/sh /home/orangepi/rescue_vision_dual/tools/run_dual_orangepi.sh
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

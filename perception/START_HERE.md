@@ -1,8 +1,8 @@
 # 交付目录与首次运行
 
-本版保留完整Python模块、双摄配置、网页、启动脚本、模型和简易观测协议C参考接收器。新增双向任务协议、连续目标编号、阶段隔离和ROI核验结果；未部署香橙派、修改真实主控或提交GitHub。
+本版保留完整Python模块、双摄配置、网页、启动脚本、模型和简易观测协议C接收器。香橙派已部署并配置开机自启，当前使用vision_simple_v2从/dev/ttyS6发送。STM32工程已接入UART6接收和OLED显示，通过DAPLink烧录及Flash校验，实机已确认上下视内容和类别更新。启动、接线及验收记录见 [README.md](README.md)。
 
-当前离线回归源码位于tests目录，覆盖新版CRC、任务约束、序号/会话、阶段切换、目标关联和核验禁止放行。运行 `python -m unittest discover -s tests -v` 可复查，主机验证不代替串口和实车验收。
+当前离线回归源码位于tests目录，36项检查覆盖CRC、任务约束、序号/会话、阶段切换、目标关联，以及实际C接收器与UART6适配模块的green筛选、X/Y推算、范围外推、超时和错误恢复。OLED只显示green的X、Y、angle和distance，用 `~` 标记估计数值，无原始数值时显示NA。运行 `python -m unittest discover -s tests -v` 可复查。
 
 ```text
 perception/

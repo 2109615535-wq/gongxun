@@ -1,32 +1,39 @@
-# 视觉端串口接入（含 angle）
+# RV2（Rescue Vision 2）（含 angle）
+***本文规定智能救援项目中，香橙派视觉端与 STM32 主控端之间的 UART 通信接口。香橙派负责识别和核验，STM32 负责运动控制与任务状态切换。本文不包含电机驱动和底层运动控制。***
 
-## 1. 主控端使用哪些文件
+## 1. 职责分配与相关文件
+### STM32 负责下发任务与实际机构状态，检查视觉结果是否有效，再决定转向、前进、机构动作和状态切换
 
+#### STM32端负责接受与发送信息的文件
 - [stm32/vision_simple.h](stm32/vision_simple.h)：类别、观测结构、`angle/angle_valid`及C接收接口。
 - [stm32/vision_simple.c](stm32/vision_simple.c)：CRC校验、逐行解析、双路独立的新帧检查和超时处理。
 - [stm32/SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)：RV2完整字段、校验样例和接入说明。
 
-将两个C文件一起加入主控工程并重新编译。初始化调用`VSP_Init`，主循环从现有UART队列取出字节及到达时间后调用`VSP_Feed`，周期调用`VSP_Get`分别读取上下视。中断/DMA只入队，模块接口在同一任务上下文调用；无新数据时仍需周期读取，以处理超时。
+### 香橙派负责接收任务要求，返回目标类别、距离、角度，以及当前阶段的核验结果。
 
-`angle`单位为度，前方0、右正左负。主控必须检查`angle_valid`，不能把未知角度当成0°。旧RV1仍可接收，但没有angle；本版无需旧二进制C接收器。
+#### 香橙派端负责接受与发送信息的文件
 
-## 2. 视觉端串口连接配置
+## 2. 硬件连接与UART参数（双端）
 
 采用3.3V TTL，视觉TX接主控所选UART的RX，双方GND共地。当前只发送观测；预留双向时再交叉连接另一对TX/RX。
 
-香橙派在`perception/`根目录执行，设备名替换为实际串口：
+### 硬件连接
+| 香橙派 (Orange Pi) | 连线方向 | STM32 (UART6) |
+| :--- | :---: | :--- |
+| 物理13脚 (`UART6_TX`) | `→` | `RX` |
+| 物理11脚 (`UART6_RX`) | `←` | `TX` |
+| 6脚 (`GND`) | `—` | `GND` |
 
-```bash
-sh tools/run_dual_orangepi.sh --controller-port /dev/ttyUSB0 --controller-protocol vision_simple_v2
+### uart参数
+```md
+包头：RV2
+波特率：115200
+数据位：8
+校验位：无
+停止位：1
+硬件流控：无
+完整数据实例：RV2,upper,42,86,ok,1,green,450,1,0,30.00*CBDC\n
 ```
-
-电脑端示例，COM3和相机编号按实际设备替换：
-
-```powershell
-python -m rescue_vision.dashboard --cameras --upper-source 1 --lower-source 2 --controller-port COM3 --controller-protocol vision_simple_v2
-```
-
-`vision_simple_v2`发送带angle的RV2；`vision_simple_v1`保留旧RV1四字段布局。两路分别约每100ms尝试发送，空场、过期或故障也发送状态。默认`motor_debug_ascii`只接收原遥测，需在主控接收器集成后显式启用新协议。
 
 ## 3. 主控端UART初始化参数
 
@@ -124,3 +131,83 @@ GPIO选择对应USART复用功能，开启接收中断或DMA。复用现有HAL�
 所有视觉结果都应关联当前 `task_id` 和动作阶段。**未知、失联或结果无效时，`danger_flag=1`，其余放行、成功标志均为0。**
 
 不需要另外设计“进入状态2指令”。香橙派返回 `delivery_confirmed`，由STM32核对任务后决定是否解除首轮限制并切换状态。
+
+### 物体类别字段 `kind`
+
+`kind` 表示物体类别，串口中使用以下8种英文取值：
+
+- `green`：普通物块，模型内部名称为 `normal_material`。
+- `black`：核心物块，模型内部名称为 `core_material`。
+- `orange`：伤员物块，模型内部名称为 `casualty`。
+- `blue`：危险物块，模型内部名称为 `hazard`。
+- `red_material_zone`：红方物资安全区。
+- `red_casualty_zone`：红方伤员安全区。
+- `blue_material_zone`：蓝方物资安全区。
+- `blue_casualty_zone`：蓝方伤员安全区。
+
+四类安全区的模型内部名称与串口取值相同。香橙派与STM32通信时统一使用上述 `kind` 取值，不发送中文名称；夹爪本体 `gripper/gripper_closed` 不作为物资发送。
+
+普通物块的JSON类别字段片段如下（不是完整报文）：
+
+```json
+"kind": "green"
+```
+
+RV2使用逗号分隔格式，普通物块对应的类别位置填写 `green`，完整样例见第2节。
+
+## 5. 上电发送与OLED联调
+
+2026-11-05已在Orange Pi 5 Ultra板端配置并重启核验，当前IP为 `10.50.6.250`。部署目录为 `/home/orangepi/rescue_vision_dual`，使用 `/home/orangepi/venvs/yolo-rknn-board/bin/python`。上下视相机正常，串口协议为 `vision_simple_v2`。
+
+### 接线与串口
+
+- 香橙派40针排针物理13脚为 `UART6_M1_TX / GPIO1_A1`，接STM32的 `PC7 / USART6_RX`。
+- 香橙派物理6脚为GND，与STM32的GND相连，信号使用3.3V TTL。
+- 板端 `/boot/orangepiEnv.txt` 已启用 `overlays=uart6-m1`，对应设备为 `/dev/ttyS6`。
+- 双方使用115200、8N1、无流控。上述物理脚号依据本地5 Ultra用户手册第200页和原理图第27页核对。
+
+香橙派启动脚本默认开启双摄和RV2串口发送。需要更换实际串口时设置 `VISION_CONTROLLER_PORT`，也可显式传入 `--controller-port`。
+
+### 开机自启
+
+服务源文件位于 [tools/rescue-vision.service](tools/rescue-vision.service)，板端已安装到 `/etc/systemd/system/rescue-vision.service` 并启用。重启后服务自动运行，已观察到UART6发送字节计数持续增加。
+
+在香橙派终端检查服务和日志：
+
+```bash
+systemctl is-enabled rescue-vision.service
+systemctl is-active rescue-vision.service
+journalctl -u rescue-vision.service -n 50 --no-pager
+```
+
+电脑可访问 `http://10.50.6.250:8080` 查看双摄画面和通信状态。
+
+### STM32接入与验收顺序
+
+1. 接入本目录 `stm32/vision_simple.c/.h`，在初始化后调用 `VSP_Init` 并启动USART6接收。
+2. 在现有UART接收和错误回调中增加USART6分发，中断只将字节及到达时间放入队列，主循环或调度任务调用 `VSP_Feed`。
+3. 周期调用 `VSP_Get` 分别读取 `VSP_UPPER` 和 `VSP_LOWER`。OLED只显示green，上下视各四行，依次为来源/green编号、X和Y、angle（A）、distance（D）。多个green每两秒轮播，没有green时显示NO GREEN。
+4. X向右为正，Y向前为正，X、Y、distance单位为mm，angle单位为度。X和Y由距离与角度计算，有数值但有效标志为0时加 `~` 前缀。缺失数值显示NA，故障或观测年龄达到300ms时清除旧目标。
+5. OLED页面由 `vision_uart6_oled_task` 统一绘制和刷新，上下视各占半屏。
+6. 两路分别放入已知类别物体，核对来源、类别和角度正负。中断视觉发送后检查OLED能进入超时状态，再进行整车断电上电测试。
+
+主控工程已接入UART6接收和green专用OLED页面，上视占前四行、下视占后四行。接收解析直接编译本目录的vision_simple.c。联调固件上电禁用电机，目标速度为0。
+
+green专用固件已重新烧录并通过Flash校验，实机已确认仅显示green，X、Y、A、D四项数据正常出现。
+
+网页上下视坐标区也可显示green的X/Y估计，未选定目标时自动显示可估算的green，估计值带 `≈` 标记。每个green识别标签附有对应坐标，故障或观测过期时清除坐标。网页坐标回归检查在perception目录运行 `node --test tests/test_web_coordinates.js`。
+
+green显示估计沿用旧标定的单应矩阵，尝试覆盖图像中可投影的前方地面，扩大到原100～800mm、0～300mm显示区域之外。优先使用绿色分割的可见底边，必要时使用检测框底边中心。范围外推只提供显示估计，原位置有效性和控制判断继续使用原标定条件。机构ROI内的物体、投影奇点、车后点或超出RV2数值上限的结果显示NA，外推精度需要实测确认。
+
+在仓库根目录使用已安装的ARM GCC编译并通过DAPLink烧录：
+
+```powershell
+python project/tools/build_vision.py
+powershell -ExecutionPolicy Bypass -File project/tools/flash_vision.ps1
+```
+
+本机脚本自动查找STM32CubeIDE自带的ARM GCC与OpenOCD。固件输出为 `project/build/project.hex`，该目录只保存本地构建产物。Keil工程也已添加接收源文件和包含路径，有ARM工具链的环境可使用原工程编译。
+
+2026-11-05已通过DAPLink完成STM32F407烧录，Flash校验返回Verified OK，复位后正常接收。主控UART6接收字节计数持续增加，采样期间UART错误、队列溢出、协议错误均为0，OLED上下视内容和类别更新已由实机确认。整车完全断电后重新上电，程序自动恢复并更新类别，冷启动验收通过。当前使用局部检查和拟合的旧标定估计，有效标志仍按验证状态和150ms窗口计算，OLED以 `~` 标记未验证或已超出150ms窗口的数值。无法提供估计的目标显示NA。
+
+`perception` 和 `project` 的改动提交到GitHub时，先创建独立分支，再由用户确认提交内容。

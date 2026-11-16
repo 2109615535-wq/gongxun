@@ -210,6 +210,26 @@ class CameraPerception:
         if tracks:
             self.tracker.reset()
 
+    def green_display_position(self, image, detection):
+        """Extend the old ground mapping for display, including a box-edge fallback."""
+        contact = green_contact(image, detection.box, LOWER, UPPER)
+        if contact is None:
+            left, _, right, bottom = detection.box
+            contact = ((left + right) / 2, bottom - 1)
+        pixel = cv2.undistortPoints(np.array([[contact]], np.float64), self.calibration.matrix,
+                                   self.calibration.distortion, P=self.calibration.matrix)[0, 0]
+        point = self.calibration.homography @ np.array([*pixel, 1.], np.float64)
+        if not np.isfinite(point).all() or abs(point[2]) < 1e-9:
+            return None
+        x, y = point[:2] / point[2]
+        distance = math.hypot(x, y)
+        # Exclude the region behind the vehicle and the homography's horizon.
+        # 65535 mm is the existing RV2 wire limit, not a validated measuring range.
+        if not math.isfinite(distance) or y < 0 or distance > 65535:
+            return None
+        return {"x_right": float(x), "y_forward": float(y), "ground_range": distance,
+                "bearing_deg": math.degrees(math.atan2(x, y))}
+
     def process(self, image, detections, captured, now, task):
         key = make_task_key(task)
         tracking_task = (task.get("session_id"), task.get("task_id"), task.get("source"))
@@ -291,6 +311,8 @@ class CameraPerception:
                             row["position_quality"] = "bbox_ground_estimate"
                         row["position_valid"] = (self.calibration.valid and not near and
                                                  d.name == "normal_material")
+            if d.name == "normal_material" and row["position_mm"] is None and not inside_grip:
+                row["display_position_mm"] = self.green_display_position(image, d)
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
         result["hazard_blocked"] = any(d.name == "hazard" or d.name not in KNOWN for d in detections)
