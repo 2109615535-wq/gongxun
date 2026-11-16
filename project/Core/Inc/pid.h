@@ -20,6 +20,7 @@ typedef struct {
     float error_int_max;
 } PID_t;
 
+/* Clear target/current/output and error history; preserve gains and limits. */
 void PID_Init(PID_t *pid);
 void PID_Update(PID_t *pid);
 #endif

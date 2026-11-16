@@ -39,11 +39,18 @@ void Key_Update(void)
     key_sample = sample;
 }
 
+uint8_t Key_Press(uint8_t keys)
+{
+    if (keys & KEY_4) { task_emergency_stop(); return 0; }
+    if (Key_Read() & KEY_4) return 2;
+    if (keys & KEY_1) { task_start(); return 0; }
+    return 1; /* KEY2/3 are intentionally unbound on the hardware too. */
+}
 static void key_run(void)
 {
     /* Stop wins if both buttons are pressed. KEY2/3 cannot override the task. */
-    if (key_state & KEY_4) task_stop();
-    else if (key_down & KEY_1) task_start();
+    if (key_state & KEY_4) Key_Press(KEY_4);
+    else if (key_down) Key_Press(key_down);
     key_down = 0U;
 }
 

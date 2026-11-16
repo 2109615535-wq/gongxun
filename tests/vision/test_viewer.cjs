@@ -26,8 +26,8 @@ const b={xmin:-60,xmax:60,ymin:-20,ymax:100};
 const zero=V.point(0,0,b,900,540),right=V.point(10,0,b,900,540),forward=V.point(0,10,b,900,540);
 assert(right.x>zero.x);assert(forward.y<zero.y);
 assert(Math.abs((right.x-zero.x)-(zero.y-forward.y))<1e-8);
-assert(!source.includes('getWriter('));assert(!source.includes('port.write('));
-console.log('PASS: actual C telemetry -> browser parser, XY axis orientation/equal scale, estimates, unknown coordinates, expiry, split/merged/oversize lines, read-only page');
+assert(source.includes('getWriter('));
+console.log('PASS: actual C telemetry -> browser parser, XY axis orientation/equal scale, estimates, unknown coordinates, expiry, split/merged/oversize lines, bidirectional control page');
 
 const rv2=JSON.parse(JSON.stringify(p));rv2.protocol='vision_simple_v2';rv2.ack=rv2.ready=0;rv2.danger=1;rv2.available=1;rv2.objects[0].valid=1;
 assert.equal(V.derive(rv2,0,0,true).points.length,2);
@@ -36,14 +36,20 @@ rv2.protocol='rescue_json_v2';assert.equal(V.derive(rv2,0,0,true).points.length,
 rv2.protocol='unknown';assert.throws(()=>V.parse(JSON.stringify(rv2)));
 console.log('PASS: RV2 displays without fake ACK/ready; JSON still requires ACK; unknown protocol rejected');
 
-assert.equal(p.wire_version,3);
+assert.equal(p.wire_version,7);
+assert(p.control && p.control.id===null && p.control.target===null);
 assert.equal(V.crc16('123456789'),0x29b1);
 assert.throws(()=>V.parse(raw.slice(0,80)+raw.slice(100)),/CRC/);
 assert.throws(()=>V.parse(raw.replace('500','501')),/CRC/);
 assert.throws(()=>V.parse(raw.slice(0,raw.lastIndexOf('*'))),/CRC/);
 function framed(o){const s=JSON.stringify(o);return s+'*'+V.crc16(s).toString(16).padStart(4,'0');}
-const array=JSON.parse(raw.slice(0,raw.lastIndexOf('*')));
-assert.equal(array.length,16);assert.equal(array[0],'V3');
+const actualArray=JSON.parse(raw.slice(0,raw.lastIndexOf('*')));
+assert.equal(actualArray.length,19);assert.equal(actualArray[0],'V7');
+const nav=JSON.parse(JSON.stringify(actualArray));nav[15][0]=50;nav[17]=[123,0,2000,1800,50];
+assert.equal(V.parse(framed(nav)).control.target.x,200);
+nav[17][2]=3001;assert.throws(()=>V.parse(framed(nav)));
+const array=actualArray.slice(0,17);array[0]='V5';
+assert.equal(array.length,17);assert.equal(array[0],'V5');
 const compact={type:'vision_xy',version:2,t:array[1],l:array[2],r:array[3],b:array[4],u:array[5],d:array[6],f:array[7],a:array[8],s:array[9],v:array[10],q:array[11],o:array[12],g:array[13],n:array[14],m:array[15]};
 const invalid=JSON.parse(JSON.stringify(compact));invalid.o[0][2]=19000;assert.throws(()=>V.parse(framed(invalid)));
 const timed=[];const splitter=new V.Lines((s,ms)=>timed.push([s,ms]),()=>assert.fail());
@@ -110,8 +116,8 @@ for(const change of [q=>q.n[4][0][1]=2,q=>q.g=140,q=>q.n[3]=0,q=>q.n[4].push([9,
 console.log('PASS: actual lower telemetry, ROI independent of upper, 400/401ms expiry, disconnect, legacy telemetry and invalid fields');
 
 const legacy=V.parse(framed(compact));assert.equal(legacy.wire_version,2);
-assert.deepEqual({...p,wire_version:2},legacy);
-assert.equal(V.parse(framed(array.slice(0,-1))).mission,null);
+const legacyExpected=JSON.parse(JSON.stringify({...p,field:null,control:null,imu:null,wire_version:2}));legacyExpected.objects.forEach(o=>delete o.track_id);assert.deepEqual(legacyExpected,legacy);
+assert.equal(V.parse(framed(['V3',...array.slice(1,15)])).mission,null);
 assert.throws(()=>V.parse(framed([...array,0])));
 const corrupted=[...array];corrupted[14]=null;assert.throws(()=>V.parse(framed(corrupted)));
 console.log('PASS: V3 preserves all V2 fields and rejects malformed arrays; sample '+Buffer.byteLength(raw.trim())+' bytes vs '+Buffer.byteLength(framed(compact))+' bytes');
@@ -128,3 +134,42 @@ assert.equal(p.mission.held_kind,0);
 for(const held of [0,1,2,3]) {const q=[...array];q[15]=[99,0,0,3,held];assert.equal(V.parse(framed(q)).mission.held_kind,held);}
 for(const held of [-1,10,1.5,null]) {const q=[...array];q[15]=[99,0,0,3,held];assert.throws(()=>V.parse(framed(q)));}
 console.log('PASS: held cargo survives ROI=0 in telemetry; old task frames retain unknown cargo, malformed cargo rejected');
+
+assert(p.field.aligned);assert.equal(p.field.robot.x,285);assert.equal(p.field.robot.y,85);
+assert.equal(p.field.observed.y,83);assert.equal(p.field.points[0].x,310);assert.equal(p.field.points[2],null);
+for(const mutate of [a=>a[16][1]=0,a=>a[16][2]=null,a=>a[16][3].pop(),a=>a[16][0][0]=NaN]){const a=JSON.parse(JSON.stringify(array));mutate(a);assert.throws(()=>V.parse(framed(a)));}
+const fh=new V.FieldHistory();fh.accept(p,1000,20);
+let fd=fh.display(p,1340,340,true);assert(!fd.points[0].historical);
+fd=fh.display(p,1341,341,true);assert(fd.points[0].historical);
+const moved=JSON.parse(JSON.stringify(p));moved.tick++;moved.field.robot.y+=20;fh.accept(moved,1350,20);
+fd=fh.display(moved,1400,50,true);assert.equal(fd.points[0].y,p.field.points[0].y);assert.equal(fh.entry.now,1000);
+assert.equal(fh.display(moved,2440,1090,true).points.length,0);
+fh.accept({...p,tick:p.tick+2,frame:p.frame+1},3000,0);assert(fh.entry);
+fh.accept({...p,tick:p.tick+3,status:1},3010,0);assert.equal(fh.entry,null);
+fh.clear();assert.equal(fh.trail.length,0);
+console.log('PASS: actual MCU field coordinates, aligned pose, unknowns, malformed map rejection, fixed historical coordinates, 400ms expiry, no duplicate refresh, clear/reset');
+
+assert.equal(p.field.points[0].track_id,1);assert.equal(p.field.points[1].track_id,2);assert.equal(p.objects[0].track_id,1);assert.equal(p.field.points[0].radius,6.5);
+assert.equal(V.targetStyle(1).fill,'#59dc82');assert.equal(V.targetStyle(2).fill,'#111111');assert.equal(V.targetStyle(3).fill,'#ff9b47');assert.equal(V.targetStyle(4).fill,'#69cfff');assert.notEqual(V.targetStyle(2).fill,V.targetStyle(2).stroke);
+assert.equal(V.targetLabel(p.field.points[0]),'#1');assert.equal(V.targetLabel({id:2}),'序2');
+const v4=JSON.parse(JSON.stringify(array));v4[0]='V4';v4[16][3]=v4[16][3].map(v=>v?v.slice(0,2):null);
+const oldMap=V.parse(framed(v4));assert.equal(oldMap.wire_version,4);assert.equal(oldMap.field.points[0].radius,null);assert.equal(oldMap.field.points[0].track_id,0);
+for(const mutate of [a=>a[16][3][0][2]=-1,a=>a[16][3][0][3]=-1,a=>a[16][3][1][2]=a[16][3][0][2],a=>a[16][3][0].pop()]){const a=JSON.parse(JSON.stringify(array));mutate(a);assert.throws(()=>V.parse(framed(a)));}
+console.log('PASS: V5 fixed IDs/radii round-trip, category colours and black outline, unknown labels, invalid/duplicate IDs rejected, old V4 retained');
+
+const click=V.fieldClick(230,150);assert.equal(click.x,200);assert.equal(click.y,180);
+assert.equal(V.fieldClick(20,150),null);assert.equal(V.fieldClick(330,30).y,300);
+assert(V.command(123,'G',[200,180,50]).startsWith('C1,123,G,2000,1800,500*'));
+assert(V.command(124,'K',[4]).startsWith('C1,124,K,4*'));
+assert.throws(()=>V.command(1,'G',[-1,20,50]));assert.throws(()=>V.command(1,'K',[5]));
+const ack='A1,123,0,50';assert.equal(V.ack(ack+'*'+V.crc16(ack).toString(16).padStart(4,'0')).step,50);
+assert.throws(()=>V.ack(ack+'*0000'));
+console.log('PASS: V6 control feedback, click coordinates, command encoding and CRC acknowledgement validation');
+
+assert(p.imu.ready && p.imu.heading_valid);assert.equal(p.imu.raw_yaw,25);
+assert(V.imuStatus(p,400,0,true).fresh);assert(!V.imuStatus(p,401,0,true).fresh);
+assert(!V.imuStatus(p,0,401,true).fresh);assert(!V.imuStatus(p,0,0,false).fresh);
+const v6=actualArray.slice(0,18);v6[0]='V6';assert.equal(V.parse(framed(v6)).imu,null);
+const unready=JSON.parse(JSON.stringify(actualArray));unready[18]=[0,null,null,0];assert(!V.imuStatus(V.parse(framed(unready)),0,0,true).ready);
+for(const data of [[1,null,0,1],[0,0,0,0],[1,0,36001,1],[1,0,0,2]]){unready[18]=data;assert.throws(()=>V.parse(framed(unready)));}
+console.log('PASS: V7 IMU telemetry, readiness/age/raw yaw, 400ms boundary, disconnect and V6 compatibility');

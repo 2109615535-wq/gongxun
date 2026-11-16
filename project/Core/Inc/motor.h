@@ -29,6 +29,9 @@
 
 #define MOTOR_SPEED_MAX 1000
 #define MOTOR_WHEEL_LIMIT 900 /* 90% maximum; 1000 remains the normalization/PWM denominator. */
+/* Disabled for comparison: uncomment the next line to restore the wheel ramp. */
+// #define MOTOR_WHEEL_ACCEL_ENABLE
+#define MOTOR_WHEEL_ACCEL_CM_S2 100.0f /* Inactive while MOTOR_WHEEL_ACCEL_ENABLE is commented. */
 #define ERROR_INT_MAX 3000
 
 #define kp_motor1 2.0f
@@ -57,7 +60,12 @@ void MotorEnable4(uint8_t Enable);
 
 
 void motor_process(void);
-/* Speed: normalized encoder speed PID target; magnitude limited to 900 (90%).
+/* Retained four-wheel targets, cm/s; common 90% scale; acceleration ramp currently disabled.
+ * Calling once is sufficient. Does not enable the drive. */
+void Motor_SetWheelSpeedCmS(float w1, float w2, float w3, float w4);
+/* Software ramp stopping time; zero while the ramp is disabled (not measured). */
+float Motor_StopTime(void);
+/* Speed: normalized encoder speed PID target; four targets scaled together to 900 (90%).
  * Positive: forward; negative: reverse; zero: zero speed target.
  * Any MotorSetSpeed call restores speed PID control for all four motors.
  * Forward PH: high for direction +1, low for direction -1.
@@ -70,7 +78,7 @@ void MotorSetSpeed3(int32_t Speed);
 void MotorSetSpeed4(int32_t Speed);
 
 /* Fixed PWM: -150 means reverse at 15%; requests above 900 scale all four together.
- * Bypasses speed PID; encoder sampling continues. Zero means PWM off.
+ * Manual open-loop API: bypasses speed PID AND wheel acceleration ramp; encoder sampling continues. Zero means PWM off.
  * Applied by motor_process() on its next scheduled run.
  */
 void MotorSetPWM(int32_t pwm1, int32_t pwm2, int32_t pwm3, int32_t pwm4);
