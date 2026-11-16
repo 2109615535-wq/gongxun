@@ -1,4 +1,5 @@
 import json
+from math import hypot, isfinite, sqrt
 from pathlib import Path
 
 import cv2
@@ -132,6 +133,61 @@ class GroundCalibration:
         rectified = cv2.undistortPoints(np.array([[[x, y]]], np.float64),
                                        self.matrix, self.distortion, P=self.matrix)[0, 0]
         return self.project(rectified)
+
+
+class RadialDistanceCompensation:
+    """Invert measured_cm = true_cm + (a*true_cm**2 + b*true_cm + c).
+
+    Coefficients use centimetres; projected points and returned points use mm.
+    The increasing branch preserves bearing by scaling both ground coordinates.
+    Missing/disabled configuration and measurements outside its range pass through.
+    """
+
+    def __init__(self, config=None):
+        if config is None:
+            config = {}
+        if not isinstance(config, dict) or type(config.get("enabled", False)) is not bool:
+            raise ValueError("distance_compensation.enabled must be boolean")
+        self.enabled = config.get("enabled", False)
+        if not self.enabled:
+            return
+        coefficients = config.get("error_coefficients_cm")
+        limits = config.get("measured_range_cm")
+        if (not isinstance(coefficients, (list, tuple)) or len(coefficients) != 3
+                or not isinstance(limits, (list, tuple)) or len(limits) != 2
+                or not all(type(v) in (int, float) and isfinite(v)
+                           for v in (*coefficients, *limits))):
+            raise ValueError("Invalid distance compensation coefficients or measured range")
+        self.a, b, self.c = map(float, coefficients)
+        self.beta = 1 + b
+        self.minimum, self.maximum = map(float, limits)
+        discriminants = [self.beta**2 + 4*self.a*(v-self.c) for v in limits]
+        if (not 0 < self.minimum < self.maximum or self.beta <= 0
+                or self.minimum <= self.c
+                or not all(isfinite(v) and v > 0 for v in discriminants)):
+            raise ValueError("Distance compensation must have a positive increasing inverse")
+
+    def apply(self, point):
+        raw_mm = hypot(*point)
+        diagnostic = {"enabled": self.enabled, "applied": False,
+                      "raw_distance_mm": raw_mm, "corrected_distance_mm": raw_mm}
+        if not self.enabled or not isfinite(raw_mm) or raw_mm <= 0:
+            return point, diagnostic
+        measured_cm = raw_mm / 10
+        # Include floating-point representations of the sampled endpoints.
+        if not self.minimum-1e-9 <= measured_cm <= self.maximum+1e-9:
+            return point, diagnostic
+        delta = measured_cm-self.c
+        discriminant = self.beta**2 + 4*self.a*delta
+        if discriminant <= 0 or not isfinite(discriminant):
+            return point, diagnostic
+        # Rationalized positive root avoids cancellation and also handles a == 0.
+        corrected_mm = 10 * (2*delta / (self.beta + sqrt(discriminant)))
+        if not isfinite(corrected_mm) or corrected_mm <= 0:
+            return point, diagnostic
+        scale = corrected_mm/raw_mm
+        diagnostic.update(applied=True, corrected_distance_mm=corrected_mm)
+        return (point[0]*scale, point[1]*scale), diagnostic
 
 
 def touches_border(box, size, margin=4):

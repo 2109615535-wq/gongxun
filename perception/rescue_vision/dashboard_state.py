@@ -178,6 +178,11 @@ class DashboardState:
                 camera["info"] = deepcopy(self.camera_info.get(role, {}))
                 if age is None or not 0 <= age <= self.config["control_max_age_ms"]:
                     camera["motion_valid"] = False
+                if age is None or not 0 <= age < self.config["control_max_age_ms"] or camera.get("mode") == "video":
+                    for row in camera.get("detections", []):
+                        if "zone_entry" in row:
+                            row["zone_entry"].update(result_valid=False, object_inside=False,
+                                                     reason="stale_or_replay")
                 if age is not None and not 0 <= age <= self.config["max_frame_age_ms"]:
                     camera.update(status="STALE", detections=[], selected=None, motion_valid=False,
                                   hazard_blocked=True, gripper={"status": "STALE", "match": False, "count": 0})

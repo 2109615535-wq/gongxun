@@ -1,0 +1,269 @@
+{
+  "status": "deployed_verified",
+  "host": "10.155.158.250",
+  "service": "rescue-vision.service",
+  "service_before": {
+    "MainPID": "899"
+  },
+  "service_after": {
+    "MainPID": "9075",
+    "ExecMainStatus": "0",
+    "ActiveState": "active",
+    "SubState": "running"
+  },
+  "deployment": {
+    "status": "files_updated_tests_passed",
+    "root": "/home/orangepi/rescue_vision_dual",
+    "backup": "/home/orangepi/rescue_vision_dual/backups/distance_compensation_20261116_171335_9028",
+    "changed_files": [
+      "rescue_vision/geometry.py",
+      "rescue_vision/dual.py",
+      "rescue_vision/fit_distance.py",
+      "config/dual_calibration/distance_compensation_fit.json",
+      "tests/test_distance_compensation.py",
+      "tests/test_task_protocol.py",
+      "config/dual_camera.json",
+      "config/dual_orangepi.json"
+    ],
+    "test_returncode": 0,
+    "service_restart_pending": false
+  },
+  "health": {
+    "model": {
+      "backend": "RKNN",
+      "classes": [
+        "normal_material",
+        "core_material",
+        "casualty",
+        "hazard",
+        "gripper",
+        "red_material_zone",
+        "blue_material_zone",
+        "red_casualty_zone",
+        "blue_casualty_zone",
+        "gripper_closed"
+      ],
+      "weights": "/home/orangepi/yolo_deploy/best_rknn_model",
+      "device": "RK3588 NPU",
+      "fast_path": true,
+      "cpu_affinity": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "status": "READY",
+      "workers": 2
+    },
+    "link": {
+      "status": "CONNECTED",
+      "protocol": "vision_simple_v2",
+      "invalid_lines": 0,
+      "error": null
+    },
+    "cameras": {
+      "upper": {
+        "status": "OK",
+        "sequence": 3000,
+        "age_ms": 134.55416600027092,
+        "error": null,
+        "calibration_quality": "local_checked",
+        "positions": [
+          {
+            "name": "casualty",
+            "position_mm": {
+              "x_right": 51.14857931537229,
+              "y_forward": 165.86472203446706,
+              "ground_range": 173.5721267414557,
+              "bearing_deg": 17.13846894679601
+            },
+            "display_position_mm": null,
+            "position_valid": false,
+            "distance_compensation": {
+              "enabled": true,
+              "applied": true,
+              "raw_distance_mm": 163.30241833378065,
+              "corrected_distance_mm": 173.5721267414557
+            }
+          },
+          {
+            "name": "core_material",
+            "position_mm": {
+              "x_right": 139.86686733013482,
+              "y_forward": 135.41137266863228,
+              "ground_range": 194.6766047185659,
+              "bearing_deg": 45.92727544116207
+            },
+            "display_position_mm": null,
+            "position_valid": false,
+            "distance_compensation": {
+              "enabled": true,
+              "applied": true,
+              "raw_distance_mm": 186.22492808765543,
+              "corrected_distance_mm": 194.67660471856587
+            }
+          },
+          {
+            "name": "normal_material",
+            "position_mm": null,
+            "display_position_mm": {
+              "x_right": -124.78338006646122,
+              "y_forward": 129.06506275409453,
+              "ground_range": 179.5234869439909,
+              "bearing_deg": -44.03367897849259
+            },
+            "position_valid": false,
+            "distance_compensation": {
+              "enabled": true,
+              "applied": true,
+              "raw_distance_mm": 169.7545824410527,
+              "corrected_distance_mm": 179.52348694399092
+            }
+          }
+        ]
+      },
+      "lower": {
+        "status": "OK",
+        "sequence": 3002,
+        "age_ms": 78.794573000323,
+        "error": null,
+        "calibration_quality": "fit_only",
+        "positions": [
+          {
+            "name": "normal_material",
+            "position_mm": null,
+            "display_position_mm": {
+              "x_right": -135.4483517282375,
+              "y_forward": 176.87077887928652,
+              "ground_range": 222.7768578808441,
+              "bearing_deg": -37.44503718414877
+            },
+            "position_valid": false,
+            "distance_compensation": {
+              "enabled": true,
+              "applied": true,
+              "raw_distance_mm": 216.92788449502473,
+              "corrected_distance_mm": 222.77685788084412
+            }
+          }
+        ]
+      }
+    },
+    "distance_compensation": {
+      "enabled": true,
+      "error_coefficients_cm": [
+        0.001316478178168962,
+        0.03766521943003619,
+        -2.0773531735933064
+      ],
+      "true_range_cm": [
+        15.0,
+        150.0
+      ],
+      "measured_range_cm": [
+        13.783832707945253,
+        186.0
+      ]
+    },
+    "outgoing_observations": [
+      {
+        "source": "upper",
+        "status": "ok",
+        "objects": [
+          {
+            "kind": "orange",
+            "distance_mm": 174,
+            "distance_valid": false,
+            "angle": 17.14
+          },
+          {
+            "kind": "black",
+            "distance_mm": 195,
+            "distance_valid": false,
+            "angle": 45.93
+          },
+          {
+            "kind": "green",
+            "distance_mm": 180,
+            "distance_valid": false,
+            "angle": -44.03
+          },
+          {
+            "kind": "black",
+            "distance_mm": -1,
+            "distance_valid": false,
+            "angle": null
+          },
+          {
+            "kind": "blue",
+            "distance_mm": -1,
+            "distance_valid": false,
+            "angle": null
+          },
+          {
+            "kind": "black",
+            "distance_mm": -1,
+            "distance_valid": false,
+            "angle": null
+          }
+        ]
+      },
+      {
+        "source": "lower",
+        "status": "ok",
+        "objects": [
+          {
+            "kind": "green",
+            "distance_mm": -1,
+            "distance_valid": false,
+            "angle": null
+          },
+          {
+            "kind": "green",
+            "distance_mm": 223,
+            "distance_valid": false,
+            "angle": -37.45
+          },
+          {
+            "kind": "orange",
+            "distance_mm": -1,
+            "distance_valid": false,
+            "angle": null
+          }
+        ]
+      }
+    ],
+    "process_args": [
+      "/home/orangepi/venvs/yolo-rknn-board/bin/python",
+      "-m",
+      "rescue_vision.dashboard",
+      "--config",
+      "/home/orangepi/rescue_vision_dual/config/dual_orangepi.json",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8080",
+      "--cameras",
+      "--controller-port",
+      "/dev/ttyS6",
+      "--controller-protocol",
+      "vision_simple_v2",
+      "--record",
+      "/home/orangepi/rescue_vision_dual/recordings/dual_20261116_171337_9075/observations.jsonl",
+      ""
+    ]
+  },
+  "verified_at": "2026-11-16T17:17:19.124533+08:00",
+  "test_summary": "Ran 36 tests in 0.242s",
+  "verified_file_sha256": {
+    "rescue_vision/geometry.py": "b90858a2e66974d34cde904c9b9b9c948324463dceaf6bdb1cee4da2a1b053c8",
+    "rescue_vision/dual.py": "c966bdf30fd56df23cc120f742f606c039b0fffbd655efd49645d83def30388e",
+    "rescue_vision/fit_distance.py": "20c29884e9c695fce1031e5c2e3f0541639309616d6f23e5372e90de9808951d",
+    "config/dual_calibration/distance_compensation_fit.json": "2cfaa00f673865c1cb49f27f23307a671a44051689d41162beab146ec129cf00",
+    "tests/test_distance_compensation.py": "31c6a1103080ea2c16096e4da200653885ff276caa03d36667ff2d5ef8eba54e",
+    "tests/test_task_protocol.py": "8ddb7f4c785f7bfe54230d85bcb4d2d913194da7ea0d5dc6f0737ceef030353b",
+    "config/dual_camera.json": "4b5dc95ac873775f1858fb0696fe85d0aef91ce2c29fbe5c12777694072690b1",
+    "config/dual_orangepi.json": "9cb6698b25e86c87711257a242d4594e73571f091556b3389070df4bc0b490ef"
+  },
+  "remote_verification_file": "/home/orangepi/rescue_vision_dual/backups/distance_compensation_20261116_171335_9028/final_verification.json"
+}

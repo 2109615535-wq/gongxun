@@ -257,7 +257,8 @@ class IntegrationTests(unittest.TestCase):
 class RoiTests(unittest.TestCase):
     def setUp(self):
         self.cfg = config()
-        calibration = SimpleNamespace(data={}, size=(640, 480), maximum=1000)
+        calibration = SimpleNamespace(data={}, size=(640, 480), maximum=1000,
+                                      matrix=np.eye(3), distortion=np.zeros(5), homography=np.eye(3))
         self.session = CameraPerception("lower", calibration, "validated", self.cfg)
         self.image = np.zeros((480, 640, 3), np.uint8)
 

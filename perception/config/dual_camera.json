@@ -38,5 +38,21 @@
         300
       ]
     }
+  },
+  "distance_compensation": {
+    "enabled": true,
+    "error_coefficients_cm": [
+      0.001316478178168962,
+      0.03766521943003619,
+      -2.0773531735933064
+    ],
+    "true_range_cm": [
+      15.0,
+      150.0
+    ],
+    "measured_range_cm": [
+      13.783832707945253,
+      186.0
+    ]
   }
 }
