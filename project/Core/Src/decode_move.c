@@ -7,8 +7,6 @@
 #include "pid.h"
 #include "servo.h"
 #include "key.h"
-#include "field_map.h"
-#include "imu.h"
 
 float x_body;
 float y_body;
@@ -50,15 +48,12 @@ void position_encoder_init(void)
     x_body = 0.0f;
     y_body = 0.0f;
     angle_body = 0.0f;
-    (void)imu_init();
-    field_map_reset(HAL_GetTick());
-    if (!imu.ready) field_map_gap();
 }
 
 void position_encoder(void)
 {
     float dis1,dis2,dis3,dis4;
-    float dx,dy,yaw;
+    float dx,dy,dtheta;
     float mid_angle;
 
     motordistance1 = (float)(encoder_get_count(&encoder1) - start_encoder_count1) 
@@ -79,12 +74,10 @@ void position_encoder(void)
     dx = (-dis1 + dis2 - dis3 + dis4) / 4.0f;   dx*= 0.952092f;
     dy = ( dis1 + dis2 + dis3 + dis4) / 4.0f;   dy*= 1.028666f;
 
-    if (!imu_at(encoder1.last_tick, &yaw)) {
-        /* No wheel-yaw fallback. Missing increments cannot be located reliably. */
-        field_map_gap();
-        return;
-    }
-    mid_angle = field_map.heading_valid ? (angle_body + yaw) / 2.0f : yaw;
+    dtheta = (-dis1 + dis2 + dis3 - dis4) / (2.0f * (wheel_X_length + wheel_Y_length));
+    dtheta *= 1.020435f;
+
+    mid_angle = angle_body + dtheta / 2.0f;
 
     //y_body = ( motordistance1 + motordistance2 + motordistance3 + motordistance4) / 4.0f * 1.028666f;
     //x_body = (-motordistance1 + motordistance2 - motordistance3 + motordistance4) / 4.0f * 0.952092f;
@@ -92,110 +85,65 @@ void position_encoder(void)
     x_body += dx * cosf(mid_angle) + dy * sinf(mid_angle);
     y_body += -dx * sinf(mid_angle) + dy * cosf(mid_angle);
 
-    angle_body = yaw;
-    /* Counts belong to the encoder sample, not this scheduler invocation. */
-    field_map_record(encoder1.last_tick, x_body, y_body, angle_body);
+    angle_body += dtheta;
 }
 
 
 
 
-static void body_move_raw(float vy, float vx, float vtheta)
-{
-    float rotation = (wheel_X_length + wheel_Y_length) * 0.5f * vtheta * 3.1415926f / 180.0f;
-    vx /= 0.952092f;
-    vy /= 1.028666f;
-    /* Physical wheel speeds; motor layer preserves the common 90% scale. */
-    Motor_SetWheelSpeedCmS(vy-vx-rotation, vy+vx+rotation,
-                          vy-vx+rotation, vy+vx-rotation);
-}
-
-BodyMotion body_motion;
-static uint8_t body_applying;
-
-void body_move_cancel(void)
-{
-    if (body_applying) return;
-    body_motion.target_forward = body_motion.target_right = body_motion.target_turn = 0;
-    body_motion.active = 0;
-    /* Cancelling the body target must not erase the active wheel trajectory. */
-}
-void body_wheel_applied(float w1, float w2, float w3, float w4)
-{
-    /* Inverse kinematics of APPLIED commands, not measured odometry. */
-    body_motion.forward = (w1+w2+w3+w4) * 0.25f * 1.028666f;
-    body_motion.right = (-w1+w2-w3+w4) * 0.25f * 0.952092f;
-    body_motion.turn = (-w1+w2+w3-w4) / (2.0f*(wheel_X_length+wheel_Y_length)) * 180.0f/3.1415926f;
-    body_motion.updated_ms = HAL_GetTick();
-}
 void body_move(float vy, float vx, float vtheta)
 {
-    body_motion.target_forward = vy;
-    body_motion.target_right = vx;
-    body_motion.target_turn = vtheta;
-    body_motion.active = 1;
-}
-void body_move_process(void)
-{
-    if (!body_motion.active) return;
-    body_applying = 1;
-    body_move_raw(body_motion.target_forward, body_motion.target_right, body_motion.target_turn);
-    body_applying = 0;
-}
-void body_stop(void)
-{
-    /* Zero command, applied next motor cycle without a software ramp. */
-    body_move(0, 0, 0);
-}
-float body_brake_distance(void)
-{
-    float speed = sqrtf(body_motion.forward*body_motion.forward + body_motion.right*body_motion.right);
-    return speed * Motor_StopTime() * 0.5f;
+    float v1,v2,v3,v4,peak,scale;
+
+    vx /= 0.952092f;
+    vy /= 1.028666f;
+
+    v1 = vy - vx - (wheel_X_length + wheel_Y_length) / 2.0f * vtheta * 3.1415926f / 180.0f;
+    v2 = vy + vx + (wheel_X_length + wheel_Y_length) / 2.0f * vtheta * 3.1415926f / 180.0f;
+    v3 = vy - vx + (wheel_X_length + wheel_Y_length) / 2.0f * vtheta * 3.1415926f / 180.0f;
+    v4 = vy + vx - (wheel_X_length + wheel_Y_length) / 2.0f * vtheta * 3.1415926f / 180.0f;
+
+    v1 *= 40810.0f * 1000.0f / (3.1415926f * wheel_diameter * (float)ENCODER_SPEED_AT_PWM1000);
+    v2 *= 40810.0f * 1000.0f / (3.1415926f * wheel_diameter * (float)ENCODER_SPEED_AT_PWM1000);
+    v3 *= 40810.0f * 1000.0f / (3.1415926f * wheel_diameter * (float)ENCODER_SPEED_AT_PWM1000);
+    v4 *= 40810.0f * 1000.0f / (3.1415926f * wheel_diameter * (float)ENCODER_SPEED_AT_PWM1000);
+
+    /* Only the wheel envelope limits a requested body velocity. Preserve ratios. */
+    peak = fabsf(v1);
+    if (fabsf(v2) > peak) peak = fabsf(v2);
+    if (fabsf(v3) > peak) peak = fabsf(v3);
+    if (fabsf(v4) > peak) peak = fabsf(v4);
+    if (peak > MOTOR_WHEEL_LIMIT) {
+        scale = (float)MOTOR_WHEEL_LIMIT / peak;
+        v1 *= scale; v2 *= scale; v3 *= scale; v4 *= scale;
+    }
+
+    MotorSetSpeed1((int32_t)v1);
+    MotorSetSpeed2((int32_t)v2);
+    MotorSetSpeed3((int32_t)v3);
+    MotorSetSpeed4((int32_t)v4);
 }
 
-#define TASK_FORWARD_CM_S 50.0f
-#define TASK_STEER_KP 3.5f
-#define TASK_STEER_KI 0.0f
-#define TASK_STEER_KD 5.0f
-#define TASK_ANGLE_DEAD_DEG 1.0f
 
 /* Simple low-speed mission: nearest green -> forward + steer -> grip and hold.
  * Nonblocking tasks; missing observations stop motion and wait for recovery. */
+#define TASK_FORWARD_CM_S 50.0f
+#define TASK_ACCEL_CM_S2 30.0f
+#define TASK_STEER_KP 1.35f
+#define TASK_STEER_KI 0.1f
+#define TASK_STEER_KD 0.0f
+#define TASK_ANGLE_DEAD_DEG 3.0f
 
 uint8_t step = 0;
 TaskInfo task_info;
-GotoTarget goto_target;
 static uint32_t lower_frame, uart_at_start, grip_since;
 static uint8_t lower_seen, lower_fault, grip_commanded, pending_kind;
-static float target_angle, target_distance_cm;
-static uint8_t near_align_state; /* 0 not checked, 1 turning, 2 done for this target. */
-PID_t pid_steer = { .kp = TASK_STEER_KP, .ki = TASK_STEER_KI,
-                    .kd = TASK_STEER_KD, .output_max = FLT_MAX,
-                    .error_int_max = FLT_MAX };
-SteerState steer_state;
+static float target_angle;
+static PID_t pid_steer;
 static uint32_t steer_frame;
 static uint8_t steer_seen;
-static float goto_x, goto_y;
-static uint8_t goto_active, goto_arrived;
-
-/* Live gains are shared by both target sources and survive task resets. */
-uint8_t steering_set_pid(float kp, float ki, float kd)
-{
-    if (!(kp >= 0 && kp <= FLT_MAX && ki >= 0 && ki <= FLT_MAX &&
-          kd >= 0 && kd <= FLT_MAX)) return 0;
-    pid_steer.kp = kp; pid_steer.ki = ki; pid_steer.kd = kd;
-    PID_Init(&pid_steer);
-    steer_seen = 0;
-    steer_state.source = 0;
-    steer_state.p = steer_state.i = steer_state.d = 0;
-    return 1;
-}
-static void goto_reset(void)
-{
-    goto_active = goto_arrived = 0;
-    near_align_state = 0;
-}
-
+static float drive_forward;
+static uint32_t drive_updated_ms;
 
 static uint32_t observation_age(const VisionObservation *o)
 {
@@ -208,31 +156,25 @@ static uint8_t observation_fresh(const VisionObservation *o)
     return o->fresh && observation_age(o) <= 400U &&
            (o->status == VISION_OBS_OK || o->status == VISION_OBS_EMPTY);
 }
-/* Restore yesterday's pursuit stop: remove output and clear steering history. */
+/* User-requested forward acceleration only; no body-speed or turn-rate cap. */
 static void drive_stop(void)
 {
     Motor_SetDriveEnabled(0);
+    drive_forward = 0;
+    drive_updated_ms = HAL_GetTick();
     PID_Init(&pid_steer);
     steer_seen = 0;
-    steer_state.source = 0;
-    steer_state.p = steer_state.i = steer_state.d = 0;
 }
 static void drive(float forward, float turn)
 {
+    uint32_t now = HAL_GetTick();
+    float max_change = TASK_ACCEL_CM_S2 * ((float)(now - drive_updated_ms) * 0.001f);
+    drive_updated_ms = now;
+    if (forward - drive_forward > max_change) drive_forward += max_change;
+    else if (drive_forward - forward > max_change) drive_forward -= max_change;
+    else drive_forward = forward;
     Motor_SetDriveEnabled(1);
-    body_move(forward, 0, turn);
-}
-uint8_t task_goto_start(float x_cm, float y_cm, float speed_cm_s)
-{
-    if (!(x_cm >= 0 && x_cm <= 300 && y_cm >= 0 && y_cm <= 300 &&
-          speed_cm_s > 0 && speed_cm_s <= FLT_MAX)) return 0;
-    if (Key_Read() & KEY_4) return 0;
-    goto_reset();
-    goto_target.x = x_cm; goto_target.y = y_cm; goto_target.speed = speed_cm_s;
-    goto_target.valid = 1;
-    drive_stop(); pending_kind = VISION_NONE;
-    task_info.reason = TASK_OK; step = 50;
-    return 1;
+    body_move(drive_forward, 0, turn);
 }
 static void claw(int16_t angle)
 {
@@ -251,30 +193,29 @@ static void enter_step(uint8_t next)
 void task_start(void)
 {
     if (task_info.held_kind != VISION_NONE) return; /* KEY1 must not drop cargo. */
-    if (step != 0 && step != 90 && step != 99 && step != 50 && step != 51) return;
-    goto_target.valid = 0; goto_reset();
+    if (step != 0 && step != 90 && step != 99) return;
     drive_stop(); claw(50); task_info.reason = TASK_OK; enter_step(1);
 }
 void task_stop(void)
 {
-    drive_stop(); claw(50); step = 0; goto_target.valid = 0; goto_reset();
+    drive_stop(); claw(50); step = 0;
     task_info.reason = TASK_STOPPED;
     task_info.inside_frames = task_info.outside_frames = 0;
     lower_fault = 0;
-}
-void task_emergency_stop(void)
-{
-    task_stop();
-    Motor_SetDriveEnabled(0); /* KEY4 removes PWM immediately, including between motor cycles. */
 }
 void task_prepare(void)
 {
     drive_stop(); claw(50);
     lower_fault = grip_commanded = 0;
-    near_align_state = 0;
     lower_seen = 1; lower_frame = vision.lower.frame_id;
     task_info.reason = TASK_OK; task_info.inside_frames = task_info.outside_frames = 0;
     uart_at_start = vision.uart_errors;
+    pid_steer.kp = TASK_STEER_KP;
+    pid_steer.ki = TASK_STEER_KI;
+    pid_steer.kd = TASK_STEER_KD;
+    /* Existing PID API requires bounds; do not add a practical body-speed cap. */
+    pid_steer.output_max = FLT_MAX;
+    pid_steer.error_int_max = FLT_MAX;
 }
 /* Called on each received frame; duplicates do not increment ROI counts. */
 void task_observe_lower(void)
@@ -343,7 +284,6 @@ static uint8_t select_nearest(void)
         return 0;
     }
     target_angle = o->objects[best].angle;
-    target_distance_cm = o->objects[best].distance_mm * 0.1f;
     task_info.reason = TASK_OK;
     return 1;
 }
@@ -354,81 +294,27 @@ TaskResult task_search(void)
 }
 /* Reuse the motor PID implementation, once per fresh visual frame.
  * current=-bearing makes a target of zero produce clockwise output for a right target. */
-static float steering_pid(float angle, uint32_t frame)
+static float steering_pid(void)
 {
-    if (!steer_seen || steer_frame != frame) {
-        float previous_error = pid_steer.error_now;
+    if (fabsf(target_angle) <= TASK_ANGLE_DEAD_DEG) {
+        PID_Init(&pid_steer); steer_seen = 0;
+        return 0;
+    }
+    if (!steer_seen || steer_frame != vision.upper.frame_id) {
         pid_steer.target = 0;
-        pid_steer.current = -angle;
-        if (fabsf(angle) <= TASK_ANGLE_DEAD_DEG) {
-            /* Keep the measured error visible, but stop correction and clear I. */
-            pid_steer.error_last = pid_steer.error_now = angle;
-            pid_steer.error_int = pid_steer.output = 0;
-            steer_state.p = steer_state.i = steer_state.d = 0;
-        } else {
-            /* Start outside the deadband without a derivative kick. */
-            if (!steer_seen || fabsf(previous_error) <= TASK_ANGLE_DEAD_DEG)
-                pid_steer.error_now = angle;
-            PID_Update(&pid_steer);
-            steer_state.p = pid_steer.kp * pid_steer.error_now;
-            steer_state.i = pid_steer.ki * pid_steer.error_int;
-            steer_state.d = pid_steer.kd * (pid_steer.error_now - pid_steer.error_last);
-        }
-        steer_state.tick = HAL_GetTick();
-        steer_frame = frame; steer_seen = 1;
+        pid_steer.current = -target_angle;
+        if (!steer_seen) pid_steer.error_now = target_angle; /* No derivative kick on acquisition. */
+        PID_Update(&pid_steer);
+        steer_frame = vision.upper.frame_id; steer_seen = 1;
     }
     return pid_steer.output;
 }
-/* Shared follow controller. Check alignment once on entering the near zone.
- * Temporary loss/stop keeps this state; a new task/point resets it. */
-static void follow_target(float angle, uint32_t frame, float distance_cm,
-                          float speed_cm_s, uint8_t source)
-{
-    if (near_align_state == 0 && distance_cm <= 25.0f) near_align_state = 1;
-    if (near_align_state == 1) {
-        if (fabsf(angle) <= 10.0f) near_align_state = 2;
-        else speed_cm_s = 0; /* Same angle PID, rotate without moving forward. */
-    }
-    steer_state.source = source;
-    drive(speed_cm_s, steering_pid(angle, frame));
-}
-/* A map point becomes a virtual target in the body frame. No vision data is
- * overwritten. Both sources use exactly the same forward + bearing PID. */
-TaskResult task_goto(float x_cm, float y_cm, float speed_cm_s)
-{
-    float dx, dy, right, forward, yaw, angle, distance_cm;
-    if (!(fabsf(x_cm) <= FLT_MAX && fabsf(y_cm) <= FLT_MAX &&
-          speed_cm_s > 0 && speed_cm_s <= FLT_MAX)) {
-        drive_stop(); return TASK_FAILED;
-    }
-    if (!goto_active || x_cm != goto_x || y_cm != goto_y) {
-        goto_reset(); drive_stop();
-        goto_active = 1; goto_x = x_cm; goto_y = y_cm;
-    }
-    if (goto_arrived) { drive_stop(); return TASK_DONE; }
-    if (!field_map.heading_valid) {
-        drive_stop(); return TASK_RUNNING;
-    }
-    dx = x_cm - field_map.robot.x;
-    dy = y_cm - field_map.robot.y;
-    yaw = field_map.robot.yaw;
-    if (!(fabsf(dx) <= FLT_MAX && fabsf(dy) <= FLT_MAX && fabsf(yaw) <= FLT_MAX)) {
-        drive_stop(); return TASK_FAILED;
-    }
-    distance_cm = hypotf(dx, dy);
-    if (distance_cm <= GOTO_POSITION_TOLERANCE_CM) {
-        goto_arrived = 1; drive_stop(); return TASK_DONE;
-    }
-    right = dx*cosf(yaw) - dy*sinf(yaw);
-    forward = dx*sinf(yaw) + dy*cosf(yaw);
-    angle = atan2f(right, forward) * 180.0f / 3.1415926f;
-    follow_target(angle, field_map.robot.tick, distance_cm, speed_cm_s, 2);
-    return TASK_RUNNING;
-}
 TaskResult task_approach(void)
 {
+    float turn;
     if (!select_nearest()) { drive_stop(); return TASK_RUNNING; }
-    follow_target(target_angle, vision.upper.frame_id, target_distance_cm, TASK_FORWARD_CM_S, 1);
+    turn = steering_pid();
+    drive(TASK_FORWARD_CM_S, turn);
     return TASK_RUNNING;
 }
 TaskResult task_grip(void)
@@ -475,14 +361,6 @@ void move(void)
         case 40:
             if (task_grip() == TASK_DONE) { task_info.reason = TASK_OK; enter_step(99); }
             break;
-        case 50:
-            switch (task_goto(goto_target.x, goto_target.y, goto_target.speed)) {
-                case TASK_DONE: step = 51; break;
-                case TASK_FAILED: task_info.reason = TASK_BAD_STEP; step = 90; break;
-                default: break;
-            }
-            break;
-        case 51: drive_stop(); break; /* Coordinate reached; retain target for display. */
         case 90: drive_stop(); break;
         case 99: drive_stop(); break; /* Hold until an explicit release (KEY4). */
         default: task_stop(); task_info.reason = TASK_BAD_STEP; break;

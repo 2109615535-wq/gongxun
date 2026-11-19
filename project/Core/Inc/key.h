@@ -20,8 +20,6 @@
 
 /* Active-low key bitmap; bit values are KEY_1..KEY_4. */
 uint8_t Key_Read(void);
-/* Same action for physical and remote keys. 0=accepted, 1=unbound, 2=KEY4 held. */
-uint8_t Key_Press(uint8_t keys);
 /* Call every 10 ms. A change is accepted after two equal samples. */
 void Key_Update(void);
 uint8_t Key_GetState(void);

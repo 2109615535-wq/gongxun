@@ -49,15 +49,11 @@ static bool hdz601_attitude_valid = false;
 static volatile bool hdz601_opened = false;
 static uint8_t hdz601_uart2_rx_byte;
 static uint8_t hdz601_uart2_rx_buffer[HDZ601_UART2_RX_BUFFER_SIZE];
-static uint32_t hdz601_uart2_rx_ticks[HDZ601_UART2_RX_BUFFER_SIZE];
-static uint32_t hdz601_byte_tick;
 static volatile uint16_t hdz601_uart2_rx_head;
 static volatile uint16_t hdz601_uart2_rx_tail;
 
 volatile hdz601_attitude_t g_hdz601_attitude = {0.0f, 0.0f, 0.0f};
 volatile uint32_t g_hdz601_valid_frame_count = 0U;
-volatile uint32_t g_hdz601_attitude_count = 0U;
-volatile uint32_t g_hdz601_attitude_tick = 0U;
 volatile uint32_t g_hdz601_checksum_error_count = 0U;
 volatile uint32_t g_hdz601_frame_error_count = 0U;
 volatile uint32_t g_hdz601_uart2_rx_overflow_count = 0U;
@@ -112,7 +108,6 @@ static bool hdz601_uart2_read_byte(uint8_t *byte)
         return false;
     }
     *byte = hdz601_uart2_rx_buffer[tail];
-    hdz601_byte_tick = hdz601_uart2_rx_ticks[tail];
     hdz601_uart2_rx_tail = (uint16_t) ((tail + 1U) & HDZ601_UART2_RX_BUFFER_MASK);
     return true;
 }
@@ -137,7 +132,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         g_hdz601_uart2_rx_overflow_count++;
     } else {
         hdz601_uart2_rx_buffer[hdz601_uart2_rx_head] = hdz601_uart2_rx_byte;
-        hdz601_uart2_rx_ticks[hdz601_uart2_rx_head] = HAL_GetTick();
         hdz601_uart2_rx_head = next_head;
     }
     if (HAL_UART_Receive_IT(huart, &hdz601_uart2_rx_byte, 1U) != HAL_OK) {
@@ -241,10 +235,7 @@ static void hdz601_parse_attitude(void)
         hdz601_attitude_valid = true;
     } else {
         g_hdz601_frame_error_count++;
-        return;
     }
-    g_hdz601_attitude_tick = hdz601_byte_tick;
-    ++g_hdz601_attitude_count;
 }
 
 static void hdz601_handle_frame(void)
@@ -333,7 +324,6 @@ void hdz601_init(void)
     g_hdz601_attitude.pitch = 0.0f;
     g_hdz601_attitude.roll = 0.0f;
     g_hdz601_valid_frame_count = 0U;
-    g_hdz601_attitude_count = g_hdz601_attitude_tick = 0U;
     g_hdz601_checksum_error_count = 0U;
     g_hdz601_frame_error_count = 0U;
     g_hdz601_uart2_rx_overflow_count = 0U;

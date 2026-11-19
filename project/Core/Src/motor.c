@@ -1,8 +1,6 @@
 #include "motor.h"
 #include "vision.h"
 #include "main.h"
-#include "decode_move.h"
-#include <math.h>
 
 extern TIM_HandleTypeDef htim1;
 
@@ -15,94 +13,6 @@ PID_t pid_motor4;
 
 static uint8_t motor_pwm_mode = 0U;
 static uint8_t motor_drive_enabled;
-
-/* Wheel surface speed in cm/s, before conversion to normalized PID targets.
- * All speed APIs share this one trajectory; commands never reset its clock. */
-static float wheel_requested[4], wheel_applied[4];
-static uint32_t wheel_updated_ms;
-#define WHEEL_SPEED_FACTOR (40810.0f * 1000.0f / (3.1415926f * wheel_diameter * (float)ENCODER_SPEED_AT_PWM1000))
-
-static float wheel_peak(const float *v)
-{
-    unsigned i;
-    float peak = 0;
-    for (i = 0; i < 4; ++i) if (fabsf(v[i]) > peak) peak = fabsf(v[i]);
-    return peak;
-}
-static void wheel_normalize(float *v)
-{
-    unsigned i;
-    float peak = wheel_peak(v);
-    float limit = (float)MOTOR_WHEEL_LIMIT / WHEEL_SPEED_FACTOR;
-    if (peak > limit) for (i = 0; i < 4; ++i) v[i] *= limit / peak;
-}
-static void wheel_reset(void)
-{
-    unsigned i;
-    for (i = 0; i < 4; ++i) wheel_requested[i] = wheel_applied[i] = 0;
-    wheel_updated_ms = HAL_GetTick();
-    body_wheel_applied(0, 0, 0, 0);
-}
-static void wheel_speed_mode(void)
-{
-    if (motor_pwm_mode) {
-        /* Leaving manual PWM: begin from feedback, not a stale speed target. */
-        wheel_applied[0] = (float)encoder_get_speed(&encoder1) / WHEEL_SPEED_FACTOR;
-        wheel_applied[1] = (float)encoder_get_speed(&encoder2) / WHEEL_SPEED_FACTOR;
-        wheel_applied[2] = (float)encoder_get_speed(&encoder3) / WHEEL_SPEED_FACTOR;
-        wheel_applied[3] = (float)encoder_get_speed(&encoder4) / WHEEL_SPEED_FACTOR;
-        wheel_normalize(wheel_applied);
-        body_wheel_applied(wheel_applied[0], wheel_applied[1], wheel_applied[2], wheel_applied[3]);
-    }
-    motor_pwm_mode = 0;
-}
-void Motor_SetWheelSpeedCmS(float w1, float w2, float w3, float w4)
-{
-    body_move_cancel();
-    wheel_speed_mode();
-    wheel_requested[0] = w1; wheel_requested[1] = w2;
-    wheel_requested[2] = w3; wheel_requested[3] = w4;
-}
-static void wheel_speed_process(float dt)
-{
-    float target[4];
-#ifdef MOTOR_WHEEL_ACCEL_ENABLE
-    float delta[4], peak, alpha;
-#else
-    (void)dt;
-#endif
-    unsigned i;
-    for (i = 0; i < 4; ++i) target[i] = wheel_requested[i];
-    wheel_normalize(target);
-#ifdef MOTOR_WHEEL_ACCEL_ENABLE
-    for (i = 0; i < 4; ++i) delta[i] = target[i] - wheel_applied[i];
-    peak = wheel_peak(delta);
-    alpha = peak > MOTOR_WHEEL_ACCEL_CM_S2 * dt ? MOTOR_WHEEL_ACCEL_CM_S2 * dt / peak : 1.0f;
-    for (i = 0; i < 4; ++i) {
-        /* One alpha for ALL wheels, for acceleration, braking and reversal. */
-        if (alpha < 1.0f) wheel_applied[i] += alpha * delta[i];
-        else wheel_applied[i] = target[i]; /* Exact zero/end state. */
-    }
-#else
-    /* No ramp: apply the normalized target in this motor cycle. */
-    for (i = 0; i < 4; ++i) wheel_applied[i] = target[i];
-#endif
-    pid_motor1.target = wheel_applied[0] * WHEEL_SPEED_FACTOR;
-    pid_motor2.target = wheel_applied[1] * WHEEL_SPEED_FACTOR;
-    pid_motor3.target = wheel_applied[2] * WHEEL_SPEED_FACTOR;
-    pid_motor4.target = wheel_applied[3] * WHEEL_SPEED_FACTOR;
-    body_wheel_applied(wheel_applied[0], wheel_applied[1], wheel_applied[2], wheel_applied[3]);
-}
-float Motor_StopTime(void)
-{
-    /* Command-based prediction, seconds, when all four targets become zero. */
-#ifdef MOTOR_WHEEL_ACCEL_ENABLE
-    return wheel_peak(wheel_applied) / MOTOR_WHEEL_ACCEL_CM_S2;
-#else
-    return 0; /* No software ramp; not a physical stopping-time estimate. */
-#endif
-}
-
 
 
 static void motor_set_speed(uint32_t channel, GPIO_TypeDef *port,
@@ -160,7 +70,6 @@ void MotorEnable4(uint8_t Enable)
 
 void Motor_Init(void) 
 {
-    wheel_reset();
     MotorEnable1(0U);
     MotorEnable2(0U);
     MotorEnable3(0U);
@@ -220,14 +129,7 @@ void Motor_Init(void)
 
 void motor_process(void)
 {
-    uint32_t now = HAL_GetTick();
-    float dt = (float)(now - wheel_updated_ms) * 0.001f;
-    wheel_updated_ms = now;
     encoder_process();
-    if (motor_drive_enabled) {
-        body_move_process();
-        if (!motor_pwm_mode) wheel_speed_process(dt);
-    }
 
     pid_motor1.current = (float)encoder_get_speed(&encoder1);
     pid_motor2.current = (float)encoder_get_speed(&encoder2);
@@ -254,25 +156,41 @@ void motor_process(void)
 }
 
 
-/* Legacy normalized-speed interfaces use the same wheel target path. */
-static void motor_request_speed(unsigned index, int32_t speed)
+void MotorSetSpeed1(int32_t Speed)
 {
-    body_move_cancel();
-    wheel_speed_mode();
-    wheel_requested[index] = (float)speed / WHEEL_SPEED_FACTOR;
+    motor_pwm_mode = 0U;
+    pid_motor1.target = (float)(Speed > MOTOR_WHEEL_LIMIT ? MOTOR_WHEEL_LIMIT :
+                               Speed < -MOTOR_WHEEL_LIMIT ? -MOTOR_WHEEL_LIMIT : Speed);
+    
 }
-void MotorSetSpeed1(int32_t Speed) { motor_request_speed(0, Speed); }
-void MotorSetSpeed2(int32_t Speed) { motor_request_speed(1, Speed); }
-void MotorSetSpeed3(int32_t Speed) { motor_request_speed(2, Speed); }
-void MotorSetSpeed4(int32_t Speed) { motor_request_speed(3, Speed); }
+
+void MotorSetSpeed2(int32_t Speed)
+{
+    motor_pwm_mode = 0U;
+    pid_motor2.target = (float)(Speed > MOTOR_WHEEL_LIMIT ? MOTOR_WHEEL_LIMIT :
+                               Speed < -MOTOR_WHEEL_LIMIT ? -MOTOR_WHEEL_LIMIT : Speed);
+}
+
+void MotorSetSpeed3(int32_t Speed)
+{
+    motor_pwm_mode = 0U;
+    pid_motor3.target = (float)(Speed > MOTOR_WHEEL_LIMIT ? MOTOR_WHEEL_LIMIT :
+                               Speed < -MOTOR_WHEEL_LIMIT ? -MOTOR_WHEEL_LIMIT : Speed);
+}
+
+void MotorSetSpeed4(int32_t Speed)
+{
+    motor_pwm_mode = 0U;
+    pid_motor4.target = (float)(Speed > MOTOR_WHEEL_LIMIT ? MOTOR_WHEEL_LIMIT :
+                               Speed < -MOTOR_WHEEL_LIMIT ? -MOTOR_WHEEL_LIMIT : Speed);
+}
+
 
 /* All four motors use fixed PWM until a speed command restores PID control. */
 void MotorSetPWM(int32_t pwm1, int32_t pwm2, int32_t pwm3, int32_t pwm4)
 {
     float p1 = (float)pwm1, p2 = (float)pwm2, p3 = (float)pwm3, p4 = (float)pwm4;
     float peak, value, scale;
-    body_move_cancel();
-    wheel_reset();
     if (!motor_pwm_mode)
     {
         /* Discard old speed targets and PID history when entering open loop. */
@@ -307,7 +225,6 @@ void Motor_SetDriveEnabled(uint8_t enable)
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
     if (enable) {
-        motor_pwm_mode = 0;
         motor_drive_enabled = 1;
         MotorEnable1(1); MotorEnable2(1); MotorEnable3(1); MotorEnable4(1);
     }

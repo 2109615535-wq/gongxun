@@ -436,11 +436,6 @@
               <FilePath>../Core/Src/vision_simple.c</FilePath>
             </File>
             <File>
-              <FileName>field_map.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../Core/Src/field_map.c</FilePath>
-            </File>
-            <File>
               <FileName>decode_move.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/decode_move.c</FilePath>

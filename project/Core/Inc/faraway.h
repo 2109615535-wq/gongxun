@@ -5,20 +5,38 @@
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
 
-/* UART5 PC12 TX / PD2 RX, 115200 8N1, crossed TX/RX and common GND.
- * V6 telemetry = V5 + [last_command_id|null,status,x_mm|null,y_mm|null,speed_cm_s|null].
- * Commands: ASCII body + '*' + CRC16-CCITT-FALSE (4 hex) + LF.
- * C1,id,K,key_number              key=1..4, same as hardware actions
- * C1,id,G,x_mm,y_mm,speed_mm_s     field x/y 0..3000, speed >0
- * C1,id,P,kp_1e4,ki_1e4,kd_1e4    shared angle gains, nonnegative, RAM only
- * C1,id,T,0_or_1                 optional S1 stream; refresh within 6 seconds
- * S1=[tag,tick,source,age|null,target,current,error,out,P,I,D,kp,ki,kd]*CRC
- * A1,id,status,step*CRC            reply; status 0 accepted,1 unbound,
- *                                2 physical KEY4 held,3 bad args,4 old sequence.
- * IDs increase modulo uint32; duplicate last ID+CRC does not reapply motion.
- * KEY4 remains effective even with an old ID. No automatic command retry.
- * GET requests telemetry. Legacy motor/PID commands remain rejected.
- * Task stops disable drive; KEY4 also releases the claw.
+/* VISION_STATIC_TEST=1 overrides ordinary telemetry: vision_xy JSON at 5 Hz.
+ * Only GET is accepted; all other commands return ERR,STATIC_TEST.
+ * tools/vision_xy.html plots all upper-camera coordinates (cm), including
+ * explicitly invalid estimates; stale/unknown coordinates are never plotted. */
+
+/* UART5: 115200, 8N1; PC12 TX, PD2 RX. Connect TX/RX crossed and share GND.
+ * ASCII protocol, one command per line (LF, CRLF or CR), case sensitive:
+ *   TARGET,500       Set all four motor target speeds, integer -1000..1000.
+ *   PID,2,0.3,0      Motor 1 Kp, Ki, Kd; each finite and within 0..100.
+ *   ENABLE,0         Disable motor 1 immediately; 1 enables it again.
+ *   RUN,1            Enable motor 1; 0 disables it.
+ *   GET              Request an immediate status report.
+ * Optional spaces around comma-separated fields are accepted.
+ * Maximum command length: 95 bytes, excluding the line ending.
+ * Replies: OK,TARGET / OK,PID / OK,ENABLE / OK,RUN, or ERR,<reason>.
+ * No command is applied until its complete line has passed validation.
+ * An overflow or UART error discards input through the next line ending.
+ *
+ * Status is one JSON object per line, reported every 50 ms by main.c:
+ * {"speed1":499,"target1":500,"speed2":498,"target2":500,
+ *  "speed3":501,"target3":500,"speed4":500,"target4":500,"y_body":12.34}
+ * y_body is forward displacement from the odometry zero, in cm (2 decimals).
+ * Current odometry assumes a fixed chassis heading.
+ * Speed is normalized encoder speed, not PWM duty or RPM.
+ * Ki/Kd use the existing PID convention, per control update (currently 20 ms).
+ * PID changes clear error history. TARGET changes preserve the integral.
+ * ENABLE keeps the target and clears error history on both transitions.
+ * Remote settings are held in RAM and are lost after reset.
+ * SerialWeb: text mode, UTF-8, 115200/8N1; enable LF/CRLF on send.
+ * Select text parsing and clear the rule: JSON is parsed automatically.
+ * Plot speedN and targetN together for the desired motor (N=1..4).
+ * TARGET addresses all four motors; PID, ENABLE and RUN address motor 1.
  */
 
 extern volatile uint32_t g_faraway_rx_overflow_count;

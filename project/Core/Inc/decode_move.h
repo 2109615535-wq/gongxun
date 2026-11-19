@@ -2,7 +2,6 @@
 #define DECODE_MOVE_H
 
 #include <stdint.h>
-#include "pid.h"
 
 /* 长度单位 cm；轮序：左前2、右前1、左后3、右后4。
  * 车体系：右为+x，前为+y；航向角从初始朝向起，顺时针为正。
@@ -28,36 +27,11 @@ extern float motordistance4;
 void position_encoder_init(void);
 /* 主循环任务中，在本次encoder_process之后调用。 */
 void position_encoder(void);
-typedef struct {
-    float target_forward, target_right, target_turn;
-    float forward, right, turn; /* Applied commands, NOT measured wheel feedback. */
-    uint32_t updated_ms;
-    uint8_t active;
-} BodyMotion;
-extern BodyMotion body_motion;
-/* Retained body target: forward/right cm/s, clockwise turn deg/s.
- * motor_process() applies wheel targets directly; no body speed/yaw cap. */
 void body_move(float vy, float vx, float vtheta);
-void body_move_process(void);
-void body_stop(void); /* Zero target next motor cycle; does not enable the drive. */
-void body_move_cancel(void); /* Cancel retained body target ownership. */
-/* Motor-layer callback: report applied wheel commands (cm/s), not feedback. */
-void body_wheel_applied(float w1, float w2, float w3, float w4);
-/* Software-ramp braking distance; zero while acceleration limiting is disabled. */
-float body_brake_distance(void);
 
 /* 任务步骤：0 空闲，1 开始，90 失败，99 结束；在主循环中修改。 */
 extern uint8_t step;
 typedef enum { TASK_RUNNING, TASK_DONE, TASK_FAILED } TaskResult;
-#define GOTO_POSITION_TOLERANCE_CM 2.0f
-/* Absolute field target (cm): share pursuit steering and
- * forward command, with one alignment to +/-10deg within 25cm per target.
- * No ramp or endpoint slowdown; arrival within 2 cm latches
- * stop. Does not grab/release cargo or require a camera observation. */
-TaskResult task_goto(float x_cm, float y_cm, float speed_cm_s);
-typedef struct { float x, y, speed; uint8_t valid; } GotoTarget;
-extern GotoTarget goto_target;
-uint8_t task_goto_start(float x_cm, float y_cm, float speed_cm_s);
 typedef enum {
     TASK_OK, TASK_STOPPED, TASK_VISION_LOST, TASK_POSITION_INVALID,
     TASK_TARGET_LOST, TASK_AMBIGUOUS, TASK_HAZARD, TASK_SEARCH_TIMEOUT,
@@ -70,15 +44,8 @@ typedef struct {
     uint8_t held_kind; /* VisionKind: NONE=empty, GREEN=ordinary block held; cleared on release. */
 } TaskInfo;
 extern TaskInfo task_info;
-/* source: 0 stopped/no target, 1 visual target, 2 field coordinate target. */
-typedef struct { uint32_t tick; uint8_t source; float p, i, d; } SteerState;
-extern PID_t pid_steer;
-extern SteerState steer_state;
-/* Runtime RAM gains. Resets angle history, does not start/stop the drive. */
-uint8_t steering_set_pid(float kp, float ki, float kd);
 void task_start(void);
-void task_stop(void); /* Normal stop and release. */
-void task_emergency_stop(void); /* KEY4 immediate stop and release. */
+void task_stop(void);
 void task_prepare(void);
 TaskResult task_search(void);
 

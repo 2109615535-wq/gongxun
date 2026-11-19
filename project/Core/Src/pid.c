@@ -15,7 +15,7 @@ void PID_Init(PID_t *pid)
     pid->error_last = 0.0f;
     pid->error_int = 0.0f;
     
-    /* Reset state only. Gains and configured limits survive task stops. */
+    pid->error_int_max = 0.0f;
 }
 
 void PID_Update(PID_t *pid)
