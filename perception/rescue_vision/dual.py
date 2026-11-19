@@ -10,7 +10,7 @@ import numpy as np
 from .bench_green import GreenSession, LOWER, UPPER, load_lower_fit, load_vehicle
 from .board_detector import validate_uvc_controls
 from .detector import box_iou
-from .geometry import GroundCalibration, green_contact, touches_border
+from .geometry import GroundCalibration, RadialDistanceCompensation, green_contact, touches_border
 from .types import TARGET_TYPES
 from .task_protocol import task_key as make_task_key
 from .tracking import TargetTracker
@@ -36,6 +36,7 @@ def load_dual_config(path):
     cfg.setdefault("inference_workers", 1)
     cfg.setdefault("capture_buffers", 2)
     cfg.setdefault("cpu_affinity", [])
+    RadialDistanceCompensation(cfg.get("distance_compensation"))
     if (type(cfg["rknn_fast_path"]) is not bool or type(cfg["rknn_core_mask"]) is not int or
             cfg["rknn_core_mask"] not in (0, 1, 2, 3, 4, 7) or
             type(cfg["preview_fps"]) is not int or not 1 <= cfg["preview_fps"] <= 30 or
@@ -187,6 +188,7 @@ class Confirmation:
 class CameraPerception:
     def __init__(self, role, calibration, quality, cfg):
         self.role, self.calibration, self.quality, self.cfg = role, calibration, quality, dict(cfg)
+        self.distance_compensation = RadialDistanceCompensation(cfg.get("distance_compensation"))
         declared_role = calibration.data.get("camera_role")
         if declared_role is not None and declared_role != role:
             raise ValueError("标定文件的上下视角色与配置不一致")
@@ -195,6 +197,7 @@ class CameraPerception:
         self.last_stamp = None
         self.task_key = None
         self.tracker = TargetTracker(role, cfg["association_iou"])
+        self.entry_counts = {}
         self.tracking_task = None
         self.projector = GreenSession(
             calibration, scope="vehicle_measurement_only",
@@ -207,8 +210,29 @@ class CameraPerception:
     def reset(self, *, tracks=True):
         self.selection.reset()
         self.grip.reset()
+        self.entry_counts.clear()
         if tracks:
             self.tracker.reset()
+
+    def green_display_position(self, image, detection):
+        """Extend the old ground mapping for display, including a box-edge fallback."""
+        contact = green_contact(image, detection.box, LOWER, UPPER)
+        if contact is None:
+            left, _, right, bottom = detection.box
+            contact = ((left + right) / 2, bottom - 1)
+        pixel = cv2.undistortPoints(np.array([[contact]], np.float64), self.calibration.matrix,
+                                   self.calibration.distortion, P=self.calibration.matrix)[0, 0]
+        point = self.calibration.homography @ np.array([*pixel, 1.], np.float64)
+        if not np.isfinite(point).all() or abs(point[2]) < 1e-9:
+            return None
+        x, y = point[:2] / point[2]
+        distance = math.hypot(x, y)
+        # Exclude the region behind the vehicle and the homography's horizon.
+        # 65535 mm is the existing RV2 wire limit, not a validated measuring range.
+        if not math.isfinite(distance) or y < 0 or distance > 65535:
+            return None
+        return {"x_right": float(x), "y_forward": float(y), "ground_range": distance,
+                "bearing_deg": math.degrees(math.atan2(x, y))}
 
     def process(self, image, detections, captured, now, task):
         key = make_task_key(task)
@@ -268,31 +292,47 @@ class CameraPerception:
                    "intersects_gripper_roi": intersects, "occluded": occluded,
                    "roi_clipped": bool(intersects and roi_coverage(d.box, roi) < 1 - 1e-6),
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
+            contact = None
+            # Zones lie on the ground even when their boxes overlap the gripper ROI.
+            # Use the centre only for a complete zone ROI; materials keep their contact point.
+            if d.name in ZONES and not touches_border(d.box, self.calibration.size):
+                contact = ((d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2)
             # An object held above the ground must never be projected through ground H.
-            if d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
+            elif d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
                 overlapping = any(other is not d and other.name in TARGET_TYPES and
                                   box_iou(d.box, other.box) > .12 for other in detections)
-                contact = None
                 if not overlapping:
                     contact = (green_contact(image, d.box, LOWER, UPPER) if d.name == "normal_material"
                                else ((d.box[0] + d.box[2]) / 2, d.box[3] - 1))
-                if contact is not None:
-                    pixel = cv2.undistortPoints(np.array([[contact]], np.float64), self.calibration.matrix,
-                                               self.calibration.distortion, P=self.calibration.matrix)[0, 0]
-                    point, near = self.projector.project_contact(pixel)
-                    if point is not None:
-                        x, y = point
-                        row["position_mm"] = {"x_right": x, "y_forward": y,
-                                              "ground_range": math.hypot(x, y),
-                                              "bearing_deg": math.degrees(math.atan2(x, y))}
-                        row["angle"] = row["position_mm"]["bearing_deg"]
-                        row["position_quality"] = "near_estimate" if near else self.quality
-                        if d.name != "normal_material":
-                            row["position_quality"] = "bbox_ground_estimate"
-                        row["position_valid"] = (self.calibration.valid and not near and
-                                                 d.name == "normal_material")
+            if contact is not None:
+                pixel = cv2.undistortPoints(np.array([[contact]], np.float64), self.calibration.matrix,
+                                           self.calibration.distortion, P=self.calibration.matrix)[0, 0]
+                point, near = self.projector.project_contact(pixel)
+                if point is not None:
+                    x, y = point
+                    row["position_mm"] = {"x_right": x, "y_forward": y,
+                                          "ground_range": math.hypot(x, y),
+                                          "bearing_deg": math.degrees(math.atan2(x, y))}
+                    row["angle"] = row["position_mm"]["bearing_deg"]
+                    row["position_quality"] = "near_estimate" if near else self.quality
+                    if d.name in ZONES:
+                        row["position_quality"] = "near_estimate" if near else "zone_roi_center"
+                    elif d.name != "normal_material":
+                        row["position_quality"] = "bbox_ground_estimate"
+                    row["position_valid"] = (self.calibration.valid and not near and
+                                             (d.name == "normal_material" or d.name in ZONES))
+            if d.name == "normal_material" and row["position_mm"] is None and not inside_grip:
+                row["display_position_mm"] = self.green_display_position(image, d)
+            position = row["position_mm"] or row.get("display_position_mm")
+            if position is not None:
+                (x, y), compensation = self.distance_compensation.apply(
+                    (position["x_right"], position["y_forward"]))
+                row["distance_compensation"] = compensation
+                position.update(x_right=x, y_forward=y, ground_range=math.hypot(x, y),
+                                bearing_deg=math.degrees(math.atan2(x, y)))
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
+        self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"])
         result["hazard_blocked"] = any(d.name == "hazard" or d.name not in KNOWN for d in detections)
         expected = task.get("expected")
         allowed = task.get("allowed_kinds")
@@ -328,6 +368,39 @@ class CameraPerception:
             if result["gripper"].get("unknown_regions"):
                 result.update(hazard_blocked=True, motion_valid=False)
         return result
+
+    def check_zone_entry(self, rows, *, fresh):
+        """完整物体 ROI 位于对应安全区 ROI 内，连续三帧才报告视觉入仓。"""
+        previous, self.entry_counts = self.entry_counts, {}
+        zones = [row for row in rows if row["name"] in ZONES and
+                 not touches_border(row["box"], self.calibration.size)]
+        for row in rows:
+            if row["name"] not in MATERIALS:
+                continue
+            entry = row["zone_entry"] = dict(zone_kind=None, result_valid=False, object_inside=False,
+                                              confirm_count=0, reason="zone_not_visible")
+            if not fresh or row["occluded"]:
+                entry["reason"] = "stale" if not fresh else "object_occluded"
+                continue
+            suffix = "_casualty_zone" if row["name"] == "casualty" else "_material_zone"
+            matching = [zone for zone in zones if zone["name"].endswith(suffix)]
+            x1, y1, x2, y2 = row["box"]
+            contained = [zone for zone in matching if zone["box"][0] <= x1 and
+                         zone["box"][1] <= y1 and x2 <= zone["box"][2] and y2 <= zone["box"][3]]
+            if len(contained) > 1:
+                entry["reason"] = "zone_ambiguous"
+            elif len(contained) == 1:
+                zone = contained[0]
+                key = (row["target_id"], zone["target_id"])
+                count = min(3, previous.get(key, 0) + 1)
+                self.entry_counts[key] = count
+                entry.update(zone_kind=zone["name"], confirm_count=count,
+                             result_valid=count == 3, object_inside=count == 3,
+                             reason="inside" if count == 3 else "confirming")
+            elif len(matching) == 1:
+                entry.update(zone_kind=matching[0]["name"], result_valid=True, reason="outside")
+            elif matching:
+                entry["reason"] = "zone_ambiguous"
 
     def check_gripper(self, rows, expected, task_key, image, *, locked_target_id=0):
         # count仍表示连续帧数，roi_count才是机构区域的实际物体数量。

@@ -50,11 +50,14 @@ const qualities = {
   validated: "标定验证通过",
   near_estimate: "近处外推估算",
   bbox_ground_estimate: "框底边地面估算",
+  display_estimate: "旧标定地面估算",
+  zone_roi_center: "安全区 ROI 中心",
   unavailable: "暂无地面坐标",
 };
 const byId = (id) => document.getElementById(id);
 const label = (value) => statuses[value] || value || "—";
-const mm = (value) => (Number.isFinite(value) ? `${value.toFixed(1)} mm` : "—");
+const mm = (value, estimate = false) =>
+  Number.isFinite(value) ? `${estimate ? "≈ " : ""}${value.toFixed(1)} mm` : "—";
 let paused = false;
 let lastState = null;
 let pollRunning = false;
@@ -67,6 +70,12 @@ function stopStream(role) {
   image.removeAttribute("src");
   image.hidden = true;
   byId(`${role}-empty`).hidden = false;
+}
+
+function getDisplayPosition(detection) {
+  return [detection?.position_mm, detection?.display_position_mm].find(
+    (point) => Number.isFinite(point?.x_right) && Number.isFinite(point?.y_forward),
+  ) || null;
 }
 
 function renderCamera(role, camera) {
@@ -89,17 +98,25 @@ function renderCamera(role, camera) {
     camera.mode === "video" || camera.info?.kind === "video"
       ? "VIDEO REPLAY"
       : "LIVE INPUT";
-  const point = camera.selected?.position_mm;
-  byId(`${role}-x`).textContent = mm(point?.x_right);
-  byId(`${role}-y`).textContent = mm(point?.y_forward);
+  const fresh = camera.status === "OK" && Number.isFinite(camera.age_ms) &&
+    camera.age_ms >= 0 && camera.age_ms < 300;
+  const target = getDisplayPosition(camera.selected) ? camera.selected :
+    camera.detections?.find((item) => item.name === "normal_material" && getDisplayPosition(item)) ||
+    camera.detections?.find((item) => getDisplayPosition(item));
+  const point = fresh ? getDisplayPosition(target) : null;
+  const estimate = point && (!target.position_valid || camera.age_ms >= 150 ||
+    point === target.display_position_mm);
+  byId(`${role}-x`).textContent = mm(point?.x_right, estimate);
+  byId(`${role}-y`).textContent = mm(point?.y_forward, estimate);
   byId(`${role}-age`).textContent = Number.isFinite(camera.age_ms)
     ? `${Math.round(camera.age_ms)} ms`
     : "—";
-  const quality =
-    camera.selected?.position_quality ||
+  const quality = (point && point === target.display_position_mm ? "display_estimate" :
+    target?.position_quality) ||
     camera.calibration_quality ||
     camera.info?.quality;
-  byId(`${role}-quality`).textContent = qualities[quality] || "等待加载标定";
+  const targetLabel = point ? ` · ${names[target.name] || target.name}${target.target_id ? ` #${target.target_id}` : ""}` : "";
+  byId(`${role}-quality`).textContent = (qualities[quality] || "等待加载标定") + targetLabel;
   byId(`${role}-inference`).textContent = Number.isFinite(camera.inference_ms)
     ? `检测 ${Number.isFinite(camera.processing_hz) ? camera.processing_hz.toFixed(1) : "—"} Hz · 画面 ${Number.isFinite(camera.info?.preview_hz) ? camera.info.preview_hz.toFixed(1) : "—"} Hz`
     : "推理 —";
@@ -112,6 +129,18 @@ function renderCamera(role, camera) {
     const chip = document.createElement("span");
     chip.className = `detection ${item.name === "hazard" ? "hazard" : ""}`;
     chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
+    const position = fresh ? getDisplayPosition(item) : null;
+    if (position) {
+      const itemEstimate = !item.position_valid || camera.age_ms >= 150 || position === item.display_position_mm;
+      chip.textContent += ` · X ${mm(position.x_right, itemEstimate)} · Y ${mm(position.y_forward, itemEstimate)} · 距离 ${mm(position.ground_range, itemEstimate)} · 方位 ${Number.isFinite(position.bearing_deg) ? `${itemEstimate ? "≈ " : ""}${position.bearing_deg.toFixed(2)}°` : "—"}`;
+    }
+    const entry = item.zone_entry;
+    if (entry) {
+      const zone = names[entry.zone_kind] || "安全区";
+      chip.textContent += entry.result_valid
+        ? ` · ${entry.object_inside ? `已进入${zone}` : `未完全进入${zone}`}`
+        : entry.reason === "confirming" ? ` · 入仓确认 ${entry.confirm_count}/3` : " · 入仓待确认";
+    }
     detections.append(chip);
   }
   if (!detections.childElementCount) detections.textContent = "暂无识别结果";
