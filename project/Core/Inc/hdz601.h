@@ -24,6 +24,9 @@ typedef struct {
 
 extern volatile hdz601_attitude_t g_hdz601_attitude;//主要的变量
 extern volatile uint32_t g_hdz601_valid_frame_count;
+/* Only a valid attitude updates these; ACKs do not renew its age. */
+extern volatile uint32_t g_hdz601_attitude_count;
+extern volatile uint32_t g_hdz601_attitude_tick;
 extern volatile uint32_t g_hdz601_checksum_error_count;
 extern volatile uint32_t g_hdz601_frame_error_count;
 extern volatile uint32_t g_hdz601_uart2_rx_overflow_count;

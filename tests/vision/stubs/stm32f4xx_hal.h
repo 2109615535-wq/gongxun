@@ -1,7 +1,19 @@
 #ifndef TEST_HAL_H
 #define TEST_HAL_H
 #include <stdint.h>
-typedef struct { void *Instance; } UART_HandleTypeDef;
+typedef struct { void *Instance;
+#ifdef TEST_HDZ
+    unsigned gState;
+#endif
+} UART_HandleTypeDef;
+#ifdef TEST_HDZ
+#define USART2 ((void *)2)
+#define HAL_UART_STATE_RESET 0U
+#define __enable_irq() ((void)0)
+int HAL_UART_Init(UART_HandleTypeDef *);
+int HAL_UART_DeInit(UART_HandleTypeDef *);
+int HAL_UART_Transmit(UART_HandleTypeDef *, uint8_t *, uint16_t, uint32_t);
+#endif
 typedef struct { uint32_t CR, SR, DR; } TestRng;
 extern TestRng test_rng;
 #define RNG (&test_rng)

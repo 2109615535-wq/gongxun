@@ -30,6 +30,7 @@
 #include "encoder.h"
 #include "faraway.h"
 #include "decode_move.h"
+#include "field_map.h"
 #include "imu.h"
 #include "vision.h"
 #include "servo.h"
@@ -189,6 +190,7 @@ int main(void)
         Error_Handler();
     }
 
+    scheduler_add_task(field_map_process, 5U, 2U); /* Independent map memory. */
     scheduler_add_task(move, 20U, 3U);
     
 

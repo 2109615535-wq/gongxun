@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>视觉任务 · XY 联调</title>
+<title>场地定位 · 视觉任务联调</title>
 <style>
 :root{color-scheme:dark;--bg:#101619;--panel:#172025;--line:#2a383e;--ink:#e7efef;--muted:#91a6ac;--cyan:#7be1d6;--amber:#ffbf6c;--green:#9be3a9;--red:#ff8585;font-family:"Segoe UI","Microsoft YaHei",sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-size:14px}button,select{font:inherit}button{border:1px solid var(--line);background:#223036;color:var(--ink);border-radius:8px;padding:10px 15px;cursor:pointer;transition:background .15s}button:hover{background:#30444c}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}button:disabled{opacity:.4;cursor:default}.primary{background:var(--cyan);color:#122d2b;border-color:var(--cyan);font-weight:650}.primary:hover{background:#a0eee5}.quiet{background:transparent}select{border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:#172025;color:var(--ink)}
@@ -13,23 +13,42 @@
 @media(max-width:500px){.sidebar{display:flex}.stats{grid-template-columns:1fr 1fr}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.panel-head{align-items:flex-start;flex-direction:column}.canvas-wrap{height:400px}h1{font-size:21px}.actions{gap:7px}.actions button{padding:9px 11px}}
 #lower-targets{height:240px;max-height:240px;overflow-y:auto;overflow-anchor:none;scrollbar-gutter:stable}
 #lower-targets>.target-row{flex-shrink:0}
+#field-layout{display:grid;grid-template-columns:minmax(300px,1fr) 260px;gap:16px;padding:16px}#field-svg{width:100%;max-height:660px;display:block;background:#131c20;border-radius:8px}#field-info{line-height:1.9;font-size:13px;font-variant-numeric:tabular-nums}#field-info strong{color:var(--cyan)}@media(max-width:790px){#field-layout{grid-template-columns:1fr}#field-svg{max-height:none}}
+input[type=number]{font:inherit;background:#101619;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:9px;width:100px}.remote-controls{padding:16px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}.stop-key{background:#8e2838;border-color:#ff8585;font-weight:700}.remote-status{padding:0 20px 16px;color:var(--muted)}#field-svg{cursor:crosshair;touch-action:manipulation}button:disabled{opacity:.45;cursor:not-allowed}
+#field-targets{max-height:150px;overflow:auto}#field-layout .controls{flex-wrap:wrap}.map-history-wrap{height:260px;overflow:auto;overflow-anchor:none;scrollbar-gutter:stable}.map-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.map-table th,.map-table td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:12px}.map-table th{position:sticky;top:0;background:var(--panel);color:var(--muted)}#map-detail{padding:12px 20px;min-height:66px;line-height:1.8}.panel-head .controls{flex-wrap:wrap}#map-select{max-width:100%}
+.sample-fields{display:flex;align-items:end;flex-wrap:wrap;gap:14px;padding:16px 20px}.sample-fields label{display:grid;gap:7px;color:var(--muted);font-size:12px}.sample-fields input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px;width:280px;max-width:100%}.sample-fields label.reference{flex:1;min-width:200px}.sample-fields label.reference input{width:100%}.sample-actions{padding:0 20px 12px;display:flex;gap:10px;flex-wrap:wrap}#sample-progress,#sample-storage{padding:0 20px 12px;line-height:1.7;overflow-wrap:anywhere}.sample-plots{display:grid;grid-template-columns:1fr 1fr;padding:0 20px;gap:12px}.sample-plots svg{width:100%;background:#131c20;border-radius:7px}.sample-table-wrap{height:230px;overflow:auto;overflow-anchor:none}.sample-table-wrap th{white-space:nowrap}#sample-guide{padding:14px 20px;line-height:1.9}#sample-panel{margin-top:18px}@media(max-width:790px){.sample-plots{grid-template-columns:1fr}.sample-fields{gap:12px}}
+[hidden]{display:none!important}.steer-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px}.steer-card{padding:15px;border:1px solid var(--line);border-radius:8px;background:#131c20}.steer-card strong{display:block;font:25px Consolas,monospace;margin-top:10px}.steer-fields{display:flex;flex-wrap:wrap;gap:16px;align-items:end;padding:0 18px 18px}.steer-fields label{display:grid;gap:6px;color:var(--muted);font-size:12px}.steer-chart{width:100%;height:auto;display:block;background:#131c20;border:1px solid var(--line);border-radius:8px}.steer-charts{display:grid;gap:12px;padding:0 18px 18px}.steer-terms{display:flex;gap:20px;flex-wrap:wrap;padding:0 18px 18px;font:13px Consolas,monospace}.steer-meta{padding:14px 18px;line-height:1.9;color:var(--muted);font-size:12px}.steer-mode{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:12px;flex-wrap:wrap;align-items:center}@media(max-width:650px){.steer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.steer-fields input{width:90px}.steer-card strong{font-size:21px}.actions{flex-wrap:wrap}}
 </style>
 </head>
 <body>
 <main class="app">
-<header><div class="brand"><div class="mark">XY</div><div><div class="eyebrow">RESCUE ROBOT · BENCH TEST</div><h1>视觉任务联调</h1><div class="sub">普通物块任务 · KEY1 启动 / KEY4 停止 · 上电静止 · 低速测试</div></div></div><div class="actions"><span id="mode-badge" class="badge"><i class="dot"></i><span>只读监视</span></span><button id="demo" class="quiet">查看演示</button><button id="export" class="quiet" disabled>导出记录</button><button id="connect" class="primary">连接遥测串口</button></div></header>
+<header><div class="brand"><div class="mark">XY</div><div><div class="eyebrow">RESCUE ROBOT · BENCH TEST</div><h1>视觉任务联调</h1><div class="sub">普通物块任务 · KEY1 启动 / KEY4 停止 · 上电静止 · 低速测试</div></div></div><div class="actions"><span id="mode-badge" class="badge"><i class="dot"></i><span>遥测监视</span></span><button id="demo" class="quiet">查看演示</button><button id="export" class="quiet" disabled>导出记录</button><button id="sample-open" class="quiet">误差采样</button><button id="steer-open" class="quiet">角度环调参</button><button id="connect" class="primary">连接遥测串口</button></div></header>
 <div id="notice" class="notice" role="status" aria-live="polite"></div>
+<section id="steer-panel" class="panel" hidden aria-label="角度环调参">
+<div class="panel-head"><div><h2>角度环调参</h2><div class="mini">追球 / 点选共用一套 PID · 目标值为 0° · ±1° 角度死区</div></div><button id="steer-back" class="quiet">返回场地图</button></div>
+<div class="steer-mode"><strong id="steer-source">等待调参遥测</strong><span id="steer-age" class="mini">—</span><button id="steer-key1" disabled>KEY1 · 启动追球</button><button id="steer-key4" class="stop-key" disabled>KEY4 · 立即停 / 松爪</button></div>
+<div class="steer-grid"><div class="steer-card"><span class="label">PID 目标值 / °</span><strong id="steer-target">—</strong></div><div class="steer-card"><span class="label">PID 实际值 / °</span><strong id="steer-current">—</strong></div><div class="steer-card"><span class="label">差值：目标 − 实际 / °</span><strong id="steer-error">—</strong></div><div class="steer-card"><span class="label">转向指令 / °/s</span><strong id="steer-output">—</strong></div></div>
+<div class="steer-fields"><label>P<input id="steer-kp" type="number" min="0" step="0.0001" value="1.35"></label><label>I<input id="steer-ki" type="number" min="0" step="0.0001" value="0.1"></label><label>D<input id="steer-kd" type="number" min="0" step="0.0001" value="0"></label><button id="steer-apply" class="primary" disabled>应用 P / I / D</button><button id="steer-read" disabled>读取主控参数</button><button id="steer-clear" class="quiet">清除曲线</button></div>
+<div id="steer-status" class="steer-meta" role="status">连接串口后打开本页，即可读取并调整角度环。</div><div id="steer-gains" class="steer-meta">主控当前参数：—</div>
+<div class="steer-terms"><span id="steer-p-term">P 项：—</span><span id="steer-i-term">I 项：—</span><span id="steer-d-term">D 项：—</span></div>
+<div class="steer-charts"><svg id="steer-angle-chart" class="steer-chart" viewBox="0 0 900 240" aria-label="角度目标实际和差值曲线" role="img"></svg><svg id="steer-output-chart" class="steer-chart" viewBox="0 0 900 200" aria-label="转向输出曲线" role="img"></svg></div>
+<div class="steer-meta">白线：目标；青线：实际；橙线：差值；紫线：转向指令。显示最近 20 秒遥测抽样。PID 实际值 = −目标相对方位角：目标在右侧 +10° 时实际值为 −10°，误差为 +10°，输出顺时针修正；这不是 IMU 场地朝向。<br>应用参数立即生效并清除旧积分和差分历史，不启动车辆。停车、KEY1 和更换目标保留参数，断电复位恢复代码默认值。I/D 沿用每个新帧计算的原公式，视觉帧和点选位姿的更新频率可能不同。<br>仅本页发送额外调参遥测；返回场地图后关闭。断开页面不会自动停车。</div>
+</section>
+<div id="monitor-view">
 <section class="stats" aria-label="接收概况">
 <div class="stat"><div class="label">数据来源</div><div id="source-value" class="value small">等待连接</div><div id="source-detail" class="detail">UART5 · 115200 · 8N1</div></div>
 <div class="stat"><div class="label" id="count-label">当前画面目标</div><div id="count-value" class="value">—</div><div id="count-detail" class="detail">等待上摄像头报文</div></div>
 <div class="stat"><div class="label">观测累计年龄</div><div id="age-value" class="value">—</div><div class="detail">主控年龄 + 实测收包耗时 + 页面等待</div></div>
 <div class="stat"><div class="label">坐标状态</div><div id="valid-value" class="value small">暂无坐标</div><div id="valid-detail" class="detail">未知位置不绘制为原点</div></div>
 </section>
-<section class="panel" style="margin-bottom:18px"><div class="panel-head"><div><h2>普通物块任务</h2><div class="mini">最近普通物块 → 目标 50 cm/s · 加速度 30 cm/s² · 轮速最大 90% → 入区夹持并保持 · 丢失停车等待</div></div><strong id="task-state">等待任务遥测</strong></div><div style="padding:14px 20px"><div id="task-reason">—</div><div id="held-object" style="margin-top:8px">夹持记录：等待遥测</div><div id="task-counts" class="mini">入区即触发夹持 · 出区不自动松开</div></div></section>
+<section class="panel" style="margin-bottom:18px"><div class="panel-head"><div><h2>场地坐标 · 物块记忆</h2><div class="mini">300 × 300 cm · 左下角为原点 · X 向右 / Y 向上 · 编码器位移 + IMU 朝向（V7）</div></div><div class="controls"><label><input type="checkbox" id="field-circles"> 显示匹配圆</label><label><input type="checkbox" id="field-history" checked> 显示选中物块历史</label><button id="field-clear" class="quiet">清除轨迹（仅页面）</button></div></div>
+<div class="remote-controls"><label>行驶速度 <input id="goto-speed" type="number" min="0.1" step="0.1" value="50"> cm/s</label><button id="remote-key1" disabled>KEY1 · 启动追球</button><button id="remote-key2" disabled>KEY2 · 未绑定</button><button id="remote-key3" disabled>KEY3 · 未绑定</button><button id="remote-key4" class="stop-key" disabled>KEY4 · 立即停机 / 松爪</button></div><div class="remote-status"><strong id="control-status">连接新版主控后，点击场地图直接行驶</strong><div id="nav-target">目标位置：—</div><div class="mini">点击场地内切换为坐标目标；完全复用追球方向 PID，从开始就按设定速度边前进边转向，到位 2 cm 内锁定停车；加减速渐变和末端减速已停用，轮速/PWM 限制 90%，车体速度与转速无固定上限。KEY1–4 与实体按键一致。无线 KEY4 到达主控才生效，实体 KEY4 可直接停机。断开网页不会自动停车。</div></div>
+<div id="field-layout"><svg id="field-svg" viewBox="0 0 360 360" role="img" aria-label="场地、小车轨迹与时间对齐后的物块坐标"><g id="field-drawing" pointer-events="none"></g><rect id="field-hit" x="30" y="30" width="300" height="300" fill="transparent" pointer-events="all"/></svg><div id="field-info"><strong id="field-state">等待场地遥测 V4–V7</strong><p id="field-pose">小车：—</p><p id="field-imu">IMU：等待数据</p><p id="field-observed">观测时车位：—</p><p id="field-origin">起点由固件提供</p><p id="field-extrinsic">视觉原点偏移：—</p><p id="field-targets">物块：—</p><div class="mini">摆好车后上电或复位，朝图片上方；第一帧 IMU 定为 0°，顺时针为正。手推测试不按 KEY1、不点击场地，车轮须贴地滚动；抬车或滑移无法由编码器测出。<br>青线：小车轨迹；绿/黑/橙/浅蓝表示物块类别，淡色虚线表示过期历史。物块使用观测时的车位转换，历史点不会跟随当前车位旋转。<br>匹配半径 = 4 + 0.05 × 距离(cm)。新版编号和地图记录整场保留，400 ms 只判观测过期；不平滑、不改变追球控制。圆点是地图记录，十字是当前观测；历史记录分批同步。下方可选择物块查看最近8次观测。减速带为示意。</div></div></div></section>
+<section class="panel" style="margin-bottom:18px"><div class="panel-head"><div><h2>普通物块任务</h2><div class="mini">最近普通物块 → 目标 50 cm/s · 无加减速渐变 · 轮速最大 90% → 入区夹持并保持 · 丢失停车等待</div></div><strong id="task-state">等待任务遥测</strong></div><div style="padding:14px 20px"><div id="task-reason">—</div><div id="held-object" style="margin-top:8px">夹持记录：等待遥测</div><div id="task-counts" class="mini">入区即触发夹持 · 出区不自动松开</div></div></section>
 <div class="layout">
 <section class="panel"><div class="panel-head"><div><h2>车体 XY 平面</h2><div class="mini">X 向右为正 · Y 向前为正 · 单位 cm · 等比例坐标轴</div></div><div class="controls"><select id="range" aria-label="坐标显示范围"><option value="100">近场 · 100 cm</option><option value="200">中场 · 200 cm</option><option value="400">远场 · 400 cm</option></select><button id="fit">适配目标</button></div></div>
 <div class="canvas-wrap"><canvas id="plot" aria-label="以小车标定原点为零点的目标位置图"></canvas><div id="empty" class="empty-overlay"><strong>等待上摄像头观测</strong><span>连接遥测串口后，目标将在这里出现</span></div></div>
-<div class="plot-footer"><div class="legend"><span><i class="solid"></i>测距有效</span><span><i class="hollow"></i>估计坐标</span><span><i style="border:1px dashed #879da5"></i>灰色：上次位置</span></div><span id="plot-hint">点击目标查看坐标</span></div></section>
+<div class="plot-footer"><div class="legend"><span><i style="background:#59dc82"></i>普通物资</span><span><i style="background:#111;border:1px solid #ddd"></i>核心物资</span><span><i style="background:#ff9b47"></i>伤员</span><span><i style="background:#69cfff"></i>危险物</span><span>均为估计坐标 · 淡色虚线：历史</span></div><span id="plot-hint">点击目标查看坐标</span></div></section>
 <aside class="sidebar">
 <section class="panel"><div class="section-top"><h2>通信与有效状态</h2><span id="test-lock" class="badge">未确认固件</span></div><div class="connection-list">
 <div class="connection-row"><span>电脑 ← 主控遥测</span><span id="pc-status">未连接</span></div>
@@ -37,24 +56,47 @@
 <div class="connection-row"><span>视觉任务确认</span><span id="ack-status">—</span></div>
 <div class="connection-row"><span>全局视觉就绪</span><span id="ready-status">—</span></div>
 <div class="connection-row"><span>上视帧编号</span><span id="frame-status" class="mono">—</span></div></div>
-<div class="fault"><strong id="fault-title">尚无数据</strong><span id="fault-detail">本页面只读取遥测，不发送运动指令。</span></div><div id="metrics" class="metrics">RX — · CRC/格式错误 — · UART 错误 —</div></section>
+<div class="fault"><strong id="fault-title">尚无数据</strong><span id="fault-detail">新版主控支持场地点选和 KEY1–4 控制。</span></div><div id="metrics" class="metrics">RX — · CRC/格式错误 — · UART 错误 —</div></section>
 <section class="panel"><div class="section-top"><h2>上视目标</h2><span id="list-count" class="mini">0 个</span></div><div id="targets" class="target-list"><div class="no-target">尚未接收到目标</div></div></section>
-<section class="panel help-panel"><div class="section-top"><h2>接线与读图</h2></div><p class="instruction"><b>电脑：</b>连接现有 UART5 遥测 COM 口；原 SerialWeb 同一串口需先断开。<br><b>视觉：</b>USART6，PC6 → RX，PC7 ← TX，共地。<br><b>空心点：</b>视觉未标为正式测距有效；本版低速任务允许使用坐标完整且主控年龄不超过 400 ms 的估计位置。每次选最近的普通物块，对准后前进，丢失停车等待。<br><b>目标消失：</b>页面累计年龄大于 400 ms 才判过期，灰色保留上次位置，累计年龄达 1.5 s 清除；明确无目标、相机故障或断开时立即清除。</p></section>
+<section class="panel help-panel"><div class="section-top"><h2>接线与读图</h2></div><p class="instruction"><b>电脑：</b>连接现有 UART5 遥测 COM 口；原 SerialWeb 同一串口需先断开。<br><b>视觉：</b>USART6，PC6 → RX，PC7 ← TX，共地。<br><b>颜色：</b>绿为普通物资、黑为核心物资、橙为伤员、浅蓝为危险物；位置均按估计显示。本版低速任务允许使用坐标完整且主控年龄不超过 400 ms 的估计位置。每次选最近的普通物块，对准后前进，丢失渐停等待。<br><b>目标消失：</b>观测累计年龄大于 400 ms 判过期。车体图仅显示短时观测；新版场地图的物块记录保留整场，空帧、故障和断连不删除，主控复位或重新初始化场地才清空。</p></section>
 </aside></div>
-<section class="panel" style="margin-top:18px" aria-label="下视夹持联调"><div class="panel-head"><div><h2>下摄像头 · 夹持区域联调</h2><div class="mini">靠近阶段：首次单物块入区即停车夹持 · 夹持后出区或丢帧保持闭合</div></div><span id="lower-state" class="badge">等待下视遥测</span></div>
+<section class="panel" style="margin-top:18px" aria-label="下视夹持联调"><div class="panel-head"><div><h2>下摄像头 · 夹持区域联调</h2><div class="mini">靠近阶段：首次单物块入区即夹持，同时渐停 · 夹持后出区或丢帧保持闭合</div></div><span id="lower-state" class="badge">等待下视遥测</span></div>
 <div style="padding:16px 20px"><div class="connection-list" style="margin-bottom:16px">
 <div class="connection-row"><span>下视帧编号 / 累计年龄</span><span id="lower-frame" class="mono">—</span></div>
 <div class="connection-row"><span>目标数 / 入区数</span><span id="lower-count">—</span></div>
 <div class="connection-row"><span>主控舵机指令（无角度反馈）</span><span id="grip-angle">—</span></div></div>
 <div id="lower-targets" class="target-list"><div class="no-target">等待下摄像头观测</div></div>
-<div class="mini">单个普通物块 in_roi=1 时停车并夹持，记录物块类别；之后 in_roi=0 或视觉丢帧不清除记录、不松开。KEY4 停车并松开、清除记录；页面仅监视。</div></div></section>
+<div class="mini">单个普通物块 in_roi=1 时立即夹持、四轮减速停车，记录物块类别；之后 in_roi=0 或视觉丢帧不清除记录、不松开。KEY4 立即停车并松开、清除记录；网页按键与实体按键一致。</div></div></section>
+<section class="panel" style="margin-top:18px" aria-label="物块地图历史"><div class="panel-head"><div><h2>物块地图 · 历史位置</h2><div id="map-sync" class="mini">等待主控地图记录</div></div><div class="controls"><select id="map-select" aria-label="选择物块查看历史" disabled></select><button id="map-sync-button" disabled>重新同步地图</button><button id="map-export" disabled>导出物块地图</button></div></div>
+<div id="map-detail">记录保存在主控，刷新页面后分批重新同步。</div><div class="map-history-wrap"><table class="map-table"><thead><tr><th>观测距今</th><th>X / cm</th><th>Y / cm</th><th>位置状态</th></tr></thead><tbody id="map-history-body"></tbody></table></div>
+<div class="plot-footer">最近8次已处理的新帧原始坐标；不做平滑。大幅跳变连续3帧支持后采纳；无法确定同一物块时保留独立记录。地图位置仍受里程计、标定和视觉估计误差影响。</div></section>
 <details class="panel raw"><summary>原始遥测与诊断</summary><pre id="raw">等待一行 vision_xy JSON 遥测……</pre></details>
-<div class="footnote"><span>原点取自视觉标定约定，不自动等同于车头或夹爪。物块位置通常对应可见贴地边缘。RV2 编号仅为本帧序号，不代表跨帧跟踪。</span><span id="footer">本地页面 · 无需联网 · 不发送串口命令</span></div>
+<div class="footnote"><span>原点取自视觉标定约定，不自动等同于车头或夹爪。物块位置通常对应可见贴地边缘。视觉 RV2 编号是本帧序号；#编号是主控场地关联ID，序编号表示未关联。</span><span id="footer">本地页面 · 双向串口控制 · 场地点选行驶</span></div>
+<section id="sample-panel" class="panel" aria-label="固定物块误差采样">
+<div class="panel-head"><div><h2>固定物块 · 距离与角度误差采样</h2><div class="mini">只采原始上视观测 · 不按地图编号选物块 · 不发送运动指令 · 不写入滤波参数</div></div><a href="#sample-guide" style="color:var(--cyan)">采样步骤</a></div>
+<div id="sample-guide" class="instruction">① 先用 KEY4 停车，固定车和摄像头，画面中只留一个所选颜色的物块。② 从<b>视觉标定时约定的地面原点</b>测量到物块<b>朝向摄像头的底边中心接地点</b>；X 向右、Y 向前，填写真实 X/Y（不要填页面估计值，也不要从保险杠随意量）。若实际视觉标定的测量点不同，以该标定约定为准，并记在下方。③ 正前方建议 Y=30、50、80、120、180、240 cm，各采 20 秒；看不见的位置可跳过。再在近/中/远处补测左、右偏角。每个位置重新摆放复测 2–3 组，绿/橙/黑分开采。④ 导出采样 JSON。均值偏差用于分析校正，标准差描述波动，不能当作绝对定位精度。</div>
+<div class="sample-fields">
+<label>物块颜色<select id="sample-kind"><option value="1">绿色 · 普通物资</option><option value="3">橙色 · 伤员</option><option value="2">黑色 · 核心物资</option></select></label>
+<label>真实 X / cm<input id="sample-x" type="number" step="0.1" value="0"></label>
+<label>真实 Y / cm<input id="sample-y" type="number" step="0.1" value="50"></label>
+<label>每组时长 / 秒<input id="sample-seconds" type="number" min="5" max="120" value="20"></label>
+<label class="reference">原点与测量点说明（必填，第一次量尺时确认）<input id="sample-reference" type="text" maxlength="200" placeholder="例如：原点为轮轴中心地面投影，量到朝车底边中心"></label>
+</div>
+<div class="sample-actions"><button id="sample-start" class="primary" disabled>开始本组采样</button><button id="sample-stop" disabled>结束本组</button><button id="sample-export" disabled>导出采样 JSON</button><button id="sample-csv" disabled>导出原始 CSV</button><button id="sample-undo" disabled>删除最后一组</button></div>
+<div id="sample-progress" role="status" aria-live="polite">连接实时串口并停车后开始。先等待 1 秒稳定，再按新帧采样。</div><div id="sample-storage" class="mini">采样记录保存在当前浏览器；完成后请导出备份。</div>
+<div class="sample-plots"><svg id="sample-range-plot" viewBox="0 0 460 220" role="img" aria-label="距离偏差随真实距离变化"></svg><svg id="sample-angle-plot" viewBox="0 0 460 220" role="img" aria-label="角度偏差随真实距离变化"></svg></div>
+<div class="mini" style="padding:10px 20px">图：每个点是一组，横轴为真实距离；误差线为该组 ±1 个样本标准差，不是置信区间。数据来自遥测抽样，不保证包含相机每一帧；同角度连续帧可能相关。标准差很小也可能存在较大固定偏差。未识别/多目标/无坐标/过期的帧单独计数，不补零、不按接近真实值筛选。</div>
+<div class="sample-table-wrap"><table class="map-table"><thead><tr><th>组 / 颜色</th><th>真实 X,Y cm / 方位°</th><th>样本数</th><th>距离偏差 / σ cm</th><th>角度偏差 / σ °</th><th>状态</th></tr></thead><tbody id="sample-results"></tbody></table></div>
+</section>
+</div>
 </main>
 <script>
 /* Pure protocol helpers are shared with the offline tests. */
 const VisionXY = (() => {
   const kinds=['未知','普通物资','核心物资','伤员','危险物','红方伤员区','红方物资区','蓝方伤员区','蓝方物资区'];
+  const targetStyle = kind => {const fill=['#aab8bd','#59dc82','#111111','#ff9b47','#69cfff','#f46b78','#f46b78','#69aaff','#69aaff'][kind]||'#aab8bd';return {fill,stroke:kind===2?'#dce5e8':fill,text:kind===2?'#dce5e8':fill};};
+  const targetLabel = o => o.track_id?'#'+o.track_id:'序'+o.id;
+  const targetKey = o => o.track_id?'T'+o.track_id:'F'+o.id;
   const flag = n => n===0 || n===1;
   const uint = n => Number.isInteger(n) && n>=0 && n<=4294967295;
   function crc16(text) {
@@ -68,10 +110,14 @@ const VisionXY = (() => {
     if(star>=0){const suffix=text.slice(star+1);if(!/^[0-9a-f]{4}$/i.test(suffix)||crc16(text.slice(0,star))!==parseInt(suffix,16))throw Error('遥测 CRC 不匹配：报文可能丢字节或损坏');text=text.slice(0,star);checked=true;}
     let p;
     try {p=JSON.parse(text);} catch(e){throw Error('遥测 JSON 不完整：报文可能丢字节、被截断或串口选错');}
+    const arrayV7=Array.isArray(p)&&p[0]==='V7';
+    const arrayV6=Array.isArray(p)&&(p[0]==='V6'||arrayV7);
+    const arrayV5=Array.isArray(p)&&(p[0]==='V5'||arrayV6);
+    const arrayV4=Array.isArray(p)&&p[0]==='V4';
     const arrayV3=Array.isArray(p)&&p[0]==='V3';
-    if(arrayV3){
-      if(!checked||![15,16].includes(p.length))throw Error('遥测 V3 长度或 CRC 无效');
-      p={type:'vision_xy',version:2,t:p[1],l:p[2],r:p[3],b:p[4],u:p[5],d:p[6],f:p[7],a:p[8],s:p[9],v:p[10],q:p[11],o:p[12],g:p[13],n:p[14],m:p[15]};
+    if(arrayV3||arrayV4||arrayV5){
+      if(!checked||!(arrayV7?p.length===19:arrayV6?p.length===18:(arrayV4||arrayV5)?p.length===17:[15,16].includes(p.length)))throw Error('遥测数组长度或 CRC 无效');
+      p={type:'vision_xy',version:2,t:p[1],l:p[2],r:p[3],b:p[4],u:p[5],d:p[6],f:p[7],a:p[8],s:p[9],v:p[10],q:p[11],o:p[12],g:p[13],n:p[14],m:p[15],fieldRaw:(arrayV4||arrayV5)?p[16]:undefined,controlRaw:arrayV6?p[17]:undefined,imuRaw:arrayV7?p[18]:undefined};
     }
     if(p && p.type==='vision_xy' && p.version===2){
       if(!checked)throw Error('遥测 v2 缺少 CRC 校验');
@@ -82,10 +128,33 @@ const VisionXY = (() => {
         const present=o[2]!==null,angle=present?o[2]/100:0,hasXY=present&&o[1]>=0,r=angle*Math.PI/180;
         return {id:i+1,kind:o[0],d_mm:o[1],angle,angle_present:+present,valid:o[3],x_cm:hasXY?Math.round(o[1]*Math.sin(r))/10:null,y_cm:hasXY?Math.round(o[1]*Math.cos(r))/10:null};
       });
+      let field=null;
+      if(arrayV4||arrayV5){
+        const f=p.fieldRaw,tuple=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(x=>Number.isInteger(x)&&Math.abs(x)<=2147483647);
+        if(!Array.isArray(f)||f.length!==6||!tuple(f[0],3)||!flag(f[1])||!(f[2]===null||tuple(f[2],3))||!Array.isArray(f[3])||f[3].length!==objects.length||!tuple(f[4],3)||!tuple(f[5],3))throw Error('无效场地遥测');
+        if(!!f[1]!==!!f[2]||f[3].some(v=>v!==null&&(!f[1]||!(arrayV5?(Array.isArray(v)&&v.length===4&&tuple(v.slice(0,2),2)&&uint(v[2])&&Number.isInteger(v[3])&&v[3]>=0&&v[3]<=1000000):tuple(v,2)))))throw Error('场地坐标缺少时间对齐依据');
+        const pose=v=>v?{x:v[0]/10,y:v[1]/10,yaw:v[2]/100}:null;
+        const ids=f[3].filter(v=>v&&arrayV5&&v[2]).map(v=>v[2]);if(new Set(ids).size!==ids.length)throw Error('重复场地编号');
+        field={robot:pose(f[0]),aligned:!!f[1],observed:pose(f[2]),points:f[3].map((v,i)=>v?{id:i+1,track_id:arrayV5?v[2]:0,radius:arrayV5?v[3]/10:null,kind:objects[i].kind,x:v[0]/10,y:v[1]/10}:null),origin:pose(f[4]),extrinsic:pose(f[5])};
+        field.points.forEach((v,i)=>{objects[i].track_id=v?v.track_id:0;});
+      }
+      let imu=null;
+      if(arrayV7){const v=p.imuRaw;
+        if(!Array.isArray(v)||v.length!==4||!flag(v[0])||!flag(v[3])||
+          (v[0]?!(uint(v[1])&&Number.isInteger(v[2])&&v[2]>=0&&v[2]<=36000):!(v[1]===null&&v[2]===null&&v[3]===0)))throw Error('无效 IMU 状态');
+        imu={ready:!!v[0],age_ms:v[1],raw_yaw:v[2]===null?null:v[2]/100,heading_valid:!!v[3]};
+      }
+      let control=null;
+      if(arrayV6){const c=p.controlRaw;
+        if(!Array.isArray(c)||c.length!==5||!(c[0]===null||uint(c[0]))||!Number.isInteger(c[1])||c[1]<0||c[1]>4)throw Error('无效控制状态');
+        const empty=c.slice(2).every(v=>v===null);
+        if(!empty&&!(Number.isInteger(c[2])&&c[2]>=0&&c[2]<=3000&&Number.isInteger(c[3])&&c[3]>=0&&c[3]<=3000&&Number.isFinite(c[4])&&c[4]>0))throw Error('无效行驶目标');
+        control={id:c[0],status:c[1],target:empty?null:{x:c[2]/10,y:c[3]/10,speed:c[4]}};
+      }
       let mission=null;
       if(p.m!==undefined){
         const m=p.m;
-        if(!Array.isArray(m)||![4,5].includes(m.length)||![0,1,10,20,30,40,90,99].includes(m[0])||!Number.isInteger(m[1])||m[1]<0||m[1]>17||![0,1,2,3].includes(m[2])||![0,1,2,3].includes(m[3]))throw Error('无效任务状态');
+        if(!Array.isArray(m)||![4,5].includes(m.length)||![0,1,10,20,30,40,50,51,90,99].includes(m[0])||!Number.isInteger(m[1])||m[1]<0||m[1]>17||![0,1,2,3].includes(m[2])||![0,1,2,3].includes(m[3]))throw Error('无效任务状态');
         if(m.length===5&&(!Number.isInteger(m[4])||m[4]<0||m[4]>9))throw Error('无效夹持类别');
         mission={step:m[0],reason:m[1],inside:m[2],outside:m[3],held_kind:m.length===5?m[4]:null};
       }
@@ -97,7 +166,7 @@ const VisionXY = (() => {
         const rows=n[4].map((o,i)=>{if(!Array.isArray(o)||o.length!==2||!Number.isInteger(o[0])||o[0]<1||o[0]>8||!flag(o[1]))throw Error('无效下视 ROI 目标');return {id:i+1,kind:o[0],in_roi:o[1]};});
         lower={frame:n[0],age_ms:n[1],status:n[2],fresh:n[3],objects:rows};grip=p.g;
       }
-      p={type:'vision_xy',version:1,wire_version:arrayV3?3:2,lower,grip,mission,protocol:'vision_simple_v2',test:mission?0:1,tick:p.t,link:p.l,ack:0,ready:0,danger:1,rx:p.r,bad:p.b,uart_errors:p.u,drops:p.d,tx:0,frame:p.f,age_ms:p.a,status:p.s,fresh:p.v,available:p.v,source:'upper',fault:['rv2_observation','waiting_rv2','invalid_packet','uart_error','vision_timeout','upper_unavailable'][p.q],count:objects.length,objects};
+      p={type:'vision_xy',version:1,wire_version:arrayV7?7:arrayV6?6:arrayV5?5:arrayV4?4:arrayV3?3:2,field,lower,grip,mission,control,imu,protocol:'vision_simple_v2',test:mission?0:1,tick:p.t,link:p.l,ack:0,ready:0,danger:1,rx:p.r,bad:p.b,uart_errors:p.u,drops:p.d,tx:0,frame:p.f,age_ms:p.a,status:p.s,fresh:p.v,available:p.v,source:'upper',fault:['rv2_observation','waiting_rv2','invalid_packet','uart_error','vision_timeout','upper_unavailable'][p.q],count:objects.length,objects};
     }
     if (!p || p.type!=='vision_xy' || p.version!==1 || p.source!=='upper' || !flag(p.test)) throw Error('不是 vision_xy v1 上视遥测');
     if (p.protocol!==undefined && !['vision_simple_v2','rescue_json_v2'].includes(p.protocol)) throw Error('Unsupported vision protocol');
@@ -156,65 +225,467 @@ const VisionXY = (() => {
       return {age,fresh:false,historical:true,expired:ageExpired(age),frame:e.p.frame,rows,points:rows.filter(o=>o.plottable)};
     }
   }
+  class FieldHistory {
+    constructor(){this.clear();}
+    clear(){this.entry=null;this.trail=[];this.lastTick=null;}
+    accept(p,now,wireMs){
+      if(this.lastTick!==null&&((p.tick-this.lastTick)>>>0)>=0x80000000)this.clear();
+      const f=p.field;
+      if(!f){this.entry=null;return;}
+      if(this.lastTick!==p.tick){this.trail.push({x:f.robot.x,y:f.robot.y});if(this.trail.length>400)this.trail.shift();}
+      this.lastTick=p.tick;
+      if(!p.link||p.status===1||p.status>=3){this.entry=null;return;}
+      if(p.fresh&&f.aligned&&(!this.entry||this.entry.p.frame!==p.frame))this.entry={p,now,wireMs};
+    }
+    display(p,now,elapsed,active){
+      if(!active){this.clear();return {points:[],trail:[],recent:false};}
+      const e=this.entry,age=e&&e.p.age_ms!==null?e.p.age_ms+e.wireMs+Math.max(0,now-e.now):null;
+      return {field:p&&p.field,recent:!!(p&&p.field&&elapsed<1000),age,trail:this.trail,
+        points:e&&age!==null&&age<1500?e.p.field.points.filter(Boolean).map(o=>({...o,historical:age>400})):[]};
+    }
+  }
   class Lines {
     constructor(onLine,onError){this.onLine=onLine;this.onError=onError;this.pending='';this.dropping=false;this.started=0;}
     push(text,now=0){for(const c of text){if(c==='\n'){if(!this.dropping&&this.pending.trim())this.onLine(this.pending.trim(),Math.max(0,now-this.started));this.pending='';this.dropping=false;}
       else if(!this.dropping){if(!this.pending)this.started=now;if(this.pending.length>=8192){this.pending='';this.dropping=true;this.onError();}else this.pending+=c;}}}
   }
-  return {parse,derive,point,Lines,kinds,crc16,PositionHistory,ageExpired,deriveLower};
+  function command(id,kind,args){
+    if(!uint(id)||!Array.isArray(args))throw Error('无效指令');
+    if(kind==='K'){if(args.length!==1||!Number.isInteger(args[0])||args[0]<1||args[0]>4)throw Error('无效按键');}
+    else if(kind==='G'){if(args.length!==3||!args.every(Number.isFinite)||args[0]<0||args[0]>300||args[1]<0||args[1]>300||args[2]<0.1||args[2]*10>4294967295)throw Error('无效坐标或速度');args=args.map(n=>Math.round(n*10));}
+    else if(kind==='P'){if(args.length!==3||!args.every(n=>Number.isFinite(n)&&n>=0&&n*10000<=4294967295))throw Error('PID 参数应为非负有限数，最多4位小数');args=args.map(n=>Math.round(n*10000));}
+    else if(kind==='T'){if(args.length!==1||![0,1].includes(args[0]))throw Error('无效调参订阅');}
+    else throw Error('未知指令');
+    const body=['C1',id,kind,...args].join(',');return body+'*'+crc16(body).toString(16).padStart(4,'0')+'\n';
+  }
+  function parseSteer(text){
+    text=text.trim();const star=text.lastIndexOf('*');
+    if(star<0||!/^[0-9a-f]{4}$/i.test(text.slice(star+1))||crc16(text.slice(0,star))!==parseInt(text.slice(star+1),16))throw Error('角度环遥测 CRC 错误');
+    const p=JSON.parse(text.slice(0,star));
+    if(!Array.isArray(p)||p.length!==14||p[0]!=='S1'||!uint(p[1])||![0,1,2].includes(p[2])||(p[2]?!uint(p[3]):p[3]!==null)||!p.slice(4).every(Number.isFinite)||p.slice(11).some(n=>n<0))throw Error('角度环遥测格式错误');
+    return {tick:p[1],source:p[2],age_ms:p[3],target:p[4],current:p[5],error:p[6],output:p[7],p:p[8],i:p[9],d:p[10],kp:p[11],ki:p[12],kd:p[13]};
+  }
+  function ack(line){
+    const m=/^A1,(\d+),([0-4]),(\d+)\*([0-9a-f]{4})$/i.exec(line.trim());
+    if(!m||!uint(Number(m[1]))||crc16(line.trim().split('*')[0])!==parseInt(m[4],16))throw Error('无效指令确认');
+    return {id:Number(m[1]),status:Number(m[2]),step:Number(m[3])};
+  }
+  function imuStatus(p,elapsed,wireMs,active){
+    const v=p&&p.imu,age=v&&v.age_ms!==null?v.age_ms+Math.max(0,elapsed)+Math.max(0,wireMs):null;
+    return {available:!!v,ready:!!(v&&v.ready),age,fresh:!!(active&&v&&v.ready&&v.heading_valid&&age<=400),raw:v&&v.raw_yaw};
+  }
+  function parseMemory(line){
+    const split=line.trim().split('*');
+    if(split.length!==2||!/^[0-9a-f]{4}$/i.test(split[1])||crc16(split[0])!==parseInt(split[1],16))throw Error('地图记录 CRC 无效');
+    const p=JSON.parse(split[0]),coord=n=>Number.isInteger(n)&&Math.abs(n)<=2147483647;
+    if(!Array.isArray(p)||p.length!==7||p[0]!=='M1'||!p.slice(1,4).every(uint)||!p[2]||!Number.isInteger(p[4])||p[4]<0||p[4]>48||!uint(p[5]))throw Error('无效地图记录头');
+    const r=p[6];let track=null;
+    if(r!==null){
+      if(!Array.isArray(r)||r.length!==12||!uint(r[0])||!r[0]||!Number.isInteger(r[1])||r[1]<1||r[1]>8||!r.slice(2,4).every(coord)||!uint(r[4])||!r.slice(5,8).every(uint)||!r[7]||!flag(r[8])||!flag(r[9])||!uint(r[10])||!Array.isArray(r[11])||!r[11].length||r[11].length>8||!p[4])throw Error('无效物块历史记录');
+      let last=null;
+      const history=r[11].map(h=>{
+        if(!Array.isArray(h)||h.length!==4||!uint(h[0])||!h.slice(1,3).every(coord)||!flag(h[3])||((p[1]-h[0])>>>0)>=0x80000000||(last!==null&&((h[0]-last)>>>0)>=0x80000000))throw Error('无效物块历史位置');
+        last=h[0];return {tick:h[0],x:h[1]/10,y:h[2]/10,accepted:!!h[3]};
+      });
+      if(last!==r[5]||((r[5]-r[6])>>>0)>=0x80000000||((p[3]-r[10])>>>0)>=0x80000000)throw Error('地图记录时间或版本错误');
+      track={track_id:r[0],kind:r[1],x:r[2]/10,y:r[3]/10,radius:r[4]/10,seen_ms:r[5],position_ms:r[6],observations:r[7],visible:!!r[8],review:!!r[9],revision:r[10],history};
+    }else if(p[4])throw Error('非空地图缺少物块记录');
+    return {tick:p[1],epoch:p[2],revision:p[3],count:p[4],unmapped:p[5],track};
+  }
+  class MapMemory {
+    constructor(){this.clear();}
+    clear(){this.epoch=null;this.entries=new Map();this.total=0;this.unmapped=0;this.lastTick=null;this.updated=0;this.field=null;}
+    clock(tick){const reset=this.lastTick!==null&&((tick-this.lastTick)>>>0)>=0x80000000;if(reset)this.clear();this.lastTick=tick;return reset;}
+    accept(p,now,wireMs){
+      let reset=this.clock(p.tick);
+      if(this.epoch!==null&&this.epoch!==p.epoch){this.clear();this.lastTick=p.tick;reset=true;}
+      this.epoch=p.epoch;this.total=p.count;this.unmapped=p.unmapped;this.updated=now;
+      if(p.track){const old=this.entries.get(p.track.track_id);
+        if(!old||((p.track.revision-old.track.revision)>>>0)<0x80000000)this.entries.set(p.track.track_id,{track:p.track,tick:p.tick,now,wireMs:Math.max(0,wireMs)});
+      }
+      return reset;
+    }
+    observe(p){this.clock(p.tick);if(p.field)this.field=p.field;}
+    display(now,active){
+      return [...this.entries.values()].map(e=>{
+        const age=((e.tick-e.track.position_ms)>>>0)+Math.max(0,now-e.now)+e.wireMs;
+        const seenAge=((e.tick-e.track.seen_ms)>>>0)+Math.max(0,now-e.now)+e.wireMs;
+        return {...e.track,age,seenAge,historical:!active||!e.track.visible||e.track.review||age>400,
+          history:e.track.history.map(h=>({...h,age:((e.tick-h.tick)>>>0)+Math.max(0,now-e.now)+e.wireMs}))};
+      }).sort((a,b)=>a.track_id-b.track_id);
+    }
+  }
+  function fieldClick(x,y){x-=30;y=330-y;return x>=0&&x<=300&&y>=0&&y<=300?{x:Math.round(x*10)/10,y:Math.round(y*10)/10}:null;}
+  const wrapAngle = a => ((a+180)%360+360)%360-180;
+  function errorStats(values){
+    const n=values.length;if(!n)return null;
+    const mean=values.reduce((a,b)=>a+b,0)/n,ss=values.reduce((a,b)=>a+(b-mean)**2,0);
+    const sorted=values.map(Math.abs).sort((a,b)=>a-b);
+    return {n,bias:mean,sd:n>1?Math.sqrt(ss/(n-1)):null,rmse:Math.sqrt(values.reduce((a,b)=>a+b*b,0)/n),p95_abs:sorted[Math.ceil(n*.95)-1],min:Math.min(...values),max:Math.max(...values)};
+  }
+  function sampleSummary(g){
+    const range=Math.hypot(g.x,g.y),angle=Math.atan2(g.x,g.y)*180/Math.PI;
+    const er=g.samples.map(s=>s.d_mm/10-range),ea=g.samples.map(s=>wrapAngle(s.angle-angle));
+    const r=errorStats(er),a=errorStats(ea);let cross=null;
+    if(r&&r.n>1)cross=er.reduce((sum,v,i)=>sum+(v-r.bias)*(ea[i]-a.bias),0)/(r.n-1)*Math.PI/180;
+    const poses=g.samples.map(s=>s.pose).filter(Boolean),base=poses[0];
+    const travel=base?Math.max(...poses.map(p=>Math.hypot(p.x-base.x,p.y-base.y))):null;
+    const turn=base?Math.max(...poses.map(p=>Math.abs(wrapAngle(p.yaw-base.yaw)))):null;
+    return {truth_range_cm:range,truth_angle_deg:angle,range_cm:r,angle_deg:a,
+      covariance_cm_rad:r&&r.n>1?[[r.sd*r.sd,cross],[cross,(a.sd*Math.PI/180)**2]]:null,
+      reported_pose_shift_cm:travel,reported_yaw_shift_deg:turn,
+      notes:[...(g.samples.length<30?['少于30个样本，建议补采']:[]),...(travel>1||turn>2?['遥测位姿有变化，请检查车是否移动；该组仍完整保留']:[]),...(ea.some(v=>Math.abs(v)>90)?['角度误差超过90度，请检查坐标轴、原点和样本身份']:[])]};
+  }
+  class ErrorSampling {
+    constructor(){this.groups=[];this.active=null;this.message='';this.lastTick=null;this.lastFrame=null;}
+    start(config,now,p){
+      if(this.active)throw Error('请先结束当前组');
+      if(this.groups.length>=200)throw Error('已达到200组存储容量，请导出记录');
+      if(![1,2,3].includes(config.kind)||!Number.isFinite(config.x)||!Number.isFinite(config.y)||config.y<=0||Math.hypot(config.x,config.y)>6553.5||!Number.isFinite(config.seconds)||config.seconds<5||config.seconds>120||typeof config.reference!=='string'||!config.reference.trim())throw Error('填写颜色、真实 X/Y、5–120 秒时长和测量原点说明');
+      if(!p||!p.mission||p.mission.step!==0)throw Error('请先用 KEY4 停车，确认任务为等待启动后再采样');
+      const g={id:(this.groups.at(-1)?.id||0)+1,kind:config.kind,x:config.x,y:config.y,seconds:config.seconds,reference:config.reference.trim().slice(0,200),started_at:new Date().toISOString(),status:'采集中',samples:[],skipped:{},metadata:{protocol:p.protocol,wire_version:p.wire_version,field_origin:p.field?.origin,extrinsic:p.field?.extrinsic}};
+      this.groups.push(g);this.active=g;this.started=now;this.lastTick=p.tick;this.lastFrame=p.frame;this.message='等待 1 秒稳定；保持车和物块不动';return g;
+    }
+    skip(reason){const g=this.active;g.skipped[reason]=(g.skipped[reason]||0)+1;this.message=reason;return false;}
+    stop(reason='手动结束'){if(this.active){this.active.status=reason;this.active.ended_at=new Date().toISOString();this.active=null;this.message=reason;}}
+    poll(now){if(this.active&&now-this.started>=1000+this.active.seconds*1000)this.stop('完成');}
+    accept(p,now,assemblyMs=0){
+      this.poll(now);if(!this.active)return false;
+      const dt=(p.tick-this.lastTick)>>>0;this.lastTick=p.tick;
+      if(dt>=0x80000000){this.stop('主控时间回退，已结束；重新摆放后再采');return false;}
+      if(!p.mission||p.mission.step!==0){this.stop('任务已启动，已结束采样');return false;}
+      const df=(p.frame-this.lastFrame)>>>0;
+      if(df>=0x80000000){this.stop('视觉帧号回退，已结束；检查视觉重启');return false;}
+      if(df===0)return this.skip('重复视觉帧');
+      this.lastFrame=p.frame;
+      if(now-this.started<1000)return this.skip('等待稳定');
+      if(!p.link||!p.available||!p.fresh||p.age_ms===null||p.age_ms+assemblyMs>400)return this.skip('观测过期或无帧');
+      if(p.status!==0&&p.status!==1)return this.skip('相机状态异常');
+      const candidates=p.objects.filter(o=>o.kind===this.active.kind);
+      if(!candidates.length)return this.skip('未识别所选颜色');
+      if(candidates.length!==1)return this.skip('所选颜色有多个目标');
+      const o=candidates[0];if(o.d_mm<=0||!o.angle_present||!Number.isFinite(o.angle))return this.skip('缺少距离或角度');
+      const rad=o.angle*Math.PI/180;
+      this.active.samples.push({tick:p.tick,frame:p.frame,age_ms:p.age_ms,assembly_ms:assemblyMs,d_mm:o.d_mm,angle:o.angle,valid:o.valid,raw_id:o.id,x_cm:o.d_mm/10*Math.sin(rad),y_cm:o.d_mm/10*Math.cos(rad),pose:p.field?.robot?{...p.field.robot}:null});
+      this.message='已采 '+this.active.samples.length+' 个新帧';if(this.active.samples.length>=1000)this.stop('达到本组1000帧存储容量，已结束');return true;
+    }
+    dataset(){return {type:'vision_error_samples',version:1,source:'upper_raw_serial',units:{distance:'cm',raw_distance:'mm',angle:'deg',covariance:'cm,rad'},notes:['没有应用任何校正或滤波','同一组连续帧可能相关；样本标准差不是独立观测精度','只包含接收到的遥测新帧，非相机全帧','真实位置和测量原点由操作者填写'],groups:this.groups.map(g=>({...g,summary:sampleSummary(g)}))};}
+    restore(data){
+      if(!data||data.type!=='vision_error_samples'||data.version!==1||data.source!=='upper_raw_serial'||!Array.isArray(data.groups)||data.groups.length>200)throw Error('采样缓存格式无效');
+      const groups=JSON.parse(JSON.stringify(data.groups));let last=0;
+      for(const g of groups){
+        if(!Number.isInteger(g.id)||g.id<=last||![1,2,3].includes(g.kind)||!Number.isFinite(g.x)||!Number.isFinite(g.y)||g.y<=0||Math.hypot(g.x,g.y)>6553.5||!Number.isFinite(g.seconds)||g.seconds<5||g.seconds>120||typeof g.reference!=='string'||g.reference.length>200||typeof g.status!=='string'||!g.skipped||!Array.isArray(g.samples)||g.samples.length>1000)throw Error('采样缓存组无效');last=g.id;
+        for(const s of g.samples)if(!uint(s.tick)||!uint(s.frame)||!uint(s.age_ms)||!Number.isFinite(s.assembly_ms)||s.assembly_ms<0||!Number.isFinite(s.d_mm)||s.d_mm<=0||s.d_mm>65535||!Number.isFinite(s.angle)||Math.abs(s.angle)>180||!flag(s.valid)||(s.pose&&![s.pose.x,s.pose.y,s.pose.yaw].every(Number.isFinite)))throw Error('采样缓存样本无效');
+        if(g.status==='采集中')g.status='页面曾关闭，本组未完成';delete g.summary;
+      }
+      this.groups=groups;this.active=null;
+    }
+    csv(){
+      const rows=[['group','kind','true_x_cm','true_y_cm','true_range_cm','true_angle_deg','tick','frame','age_ms','assembly_ms','distance_mm','angle_deg','source_valid','error_range_cm','error_angle_deg']];
+      for(const g of this.groups){const r=Math.hypot(g.x,g.y),a=Math.atan2(g.x,g.y)*180/Math.PI;for(const s of g.samples)rows.push([g.id,g.kind,g.x,g.y,r,a,s.tick,s.frame,s.age_ms,s.assembly_ms,s.d_mm,s.angle,s.valid,s.d_mm/10-r,wrapAngle(s.angle-a)]);}
+      return rows.map(row=>row.join(',')).join('\r\n')+'\r\n';
+    }
+  }
+  return {parseSteer,ErrorSampling,sampleSummary,errorStats,wrapAngle,MapMemory,parseMemory,imuStatus,command,ack,fieldClick,parse,derive,point,Lines,kinds,crc16,PositionHistory,ageExpired,deriveLower,FieldHistory,targetStyle,targetLabel,targetKey};
 })();
 if(typeof module!=='undefined')module.exports=VisionXY;
 if(typeof document!=='undefined') {
 (() => {
   const $=id=>document.getElementById(id),canvas=$('plot'),ctx=canvas.getContext('2d');
   let port=null,reader=null,readTask=null,closing=false,mode='idle',snapshot=null,received=0,wireMs=0,selected=null;
+  let commandSeq=Date.now()>>>0,latestCommand=null,writeChain=Promise.resolve(),writeEpoch=0;
+  const awaiting=new Map();
+  let steerOpen=false,steerPacket=null,steerReceived=0,steerAssembly=0,steerSubscribedAt=-Infinity,steerLoaded=false;
+  let steerPoints=[];
   let demoTimer=null,badLines=0,goodLines=0,lastRaw='',records=[],lastList='',hits=[];
   const history=new VisionXY.PositionHistory();
+  const fieldHistory=new VisionXY.FieldHistory();
+  const mapMemory=new VisionXY.MapMemory();
+  const sampling=new VisionXY.ErrorSampling(),sampleStorageKey='vision-error-samples-v1';
+  let sampleRenderKey='',sampleSaveAt=0,sampleDirty=false;
+  try{const saved=localStorage.getItem(sampleStorageKey);if(saved){sampling.restore(JSON.parse(saved));set('sample-storage','已恢复 '+sampling.groups.length+' 组本地采样；断开串口和切换演示不会删除。');}}
+  catch(e){set('sample-storage','采样缓存未恢复：'+e.message+'。新采样仍可直接导出。','warn');}
+  function saveSamples(){
+    try{localStorage.setItem(sampleStorageKey,JSON.stringify(sampling.dataset()));set('sample-storage','已保存 '+sampling.groups.length+' 组到当前浏览器；请导出 JSON 备份。');}
+    catch(e){set('sample-storage','本地缓存保存失败，请立即导出 JSON：'+e.message,'warn');}
+    sampleDirty=false;sampleSaveAt=performance.now();
+  }
+  function endSample(reason){if(sampling.active){sampling.stop(reason);sampleDirty=true;saveSamples();}}
+  function sampleReady(){return mode==='live'&&port&&!closing&&snapshot&&snapshot.mission?.step===0&&performance.now()-received<1000;}
+  function downloadSample(text,suffix,type){const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download='vision-error-samples-'+new Date().toISOString().replace(/[:.]/g,'-')+suffix;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+  $('sample-open').addEventListener('click',()=>$('sample-panel').scrollIntoView({block:'start'}));
+  $('sample-start').addEventListener('click',()=>{
+    try{
+      if(!sampleReady())throw Error('仅能从实时串口的停车状态开始采样');
+      for(const id of ['sample-x','sample-y','sample-seconds'])if(!$(id).value.trim())throw Error('请填写真实 X/Y 和采样时长');
+      sampling.start({kind:Number($('sample-kind').value),x:Number($('sample-x').value),y:Number($('sample-y').value),seconds:Number($('sample-seconds').value),reference:$('sample-reference').value},performance.now(),snapshot);sampleDirty=true;saveSamples();
+    }catch(e){sampling.message=e.message;}
+    renderSampling();
+  });
+  $('sample-stop').addEventListener('click',()=>{endSample('手动结束');renderSampling();});
+  $('sample-export').addEventListener('click',()=>downloadSample(JSON.stringify(sampling.dataset(),null,2),'.json','application/json'));
+  $('sample-csv').addEventListener('click',()=>downloadSample(sampling.csv(),'.csv','text/csv;charset=utf-8'));
+  $('sample-undo').addEventListener('click',()=>{if(!sampling.active&&sampling.groups.length){sampling.groups.pop();sampling.message='已删除最后一组';sampleDirty=true;saveSamples();renderSampling();}});
+  window.addEventListener('pagehide',()=>{if(sampling.groups.length)saveSamples();});
+  function samplePlot(id,rows,metric,title,unit){
+    const data=rows.filter(r=>r.summary[metric]),maxX=Math.max(50,...data.map(r=>r.summary.truth_range_cm))*1.1;
+    const maxY=Math.max(metric==='range_cm'?1:.5,...data.map(r=>Math.abs(r.summary[metric].bias)+(r.summary[metric].sd||0)))*1.15;
+    const x=v=>52+v/maxX*386,y=v=>114-v/maxY*70;
+    let s='<text x="16" y="23" fill="#e7efef" font-size="13">'+title+' ('+unit+')</text>';
+    for(const v of [-maxY,0,maxY])s+='<line x1="52" x2="438" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#2a383e"/><text x="47" y="'+(y(v)+4)+'" text-anchor="end" fill="#91a6ac" font-size="11">'+v.toFixed(1)+'</text>';
+    for(let n=0;n<=4;n++){const v=maxX*n/4;s+='<text x="'+x(v)+'" y="201" text-anchor="middle" fill="#91a6ac" font-size="10">'+v.toFixed(0)+'</text>';}
+    for(const r of data){const m=r.summary[metric],px=x(r.summary.truth_range_cm),py=y(m.bias),c=VisionXY.targetStyle(r.kind).stroke;s+='<g><title>组 '+r.id+' / '+VisionXY.kinds[r.kind]+' / '+m.n+' 帧</title><line x1="'+px+'" x2="'+px+'" y1="'+y(m.bias+(m.sd||0))+'" y2="'+y(m.bias-(m.sd||0))+'" stroke="'+c+'" stroke-width="2"/><circle cx="'+px+'" cy="'+py+'" r="4" fill="'+c+'"/></g>';}
+    if(!data.length)s+='<text x="245" y="96" text-anchor="middle" fill="#91a6ac" font-size="13">尚无实测样本</text>';
+    s+='<text x="438" y="216" text-anchor="end" fill="#91a6ac" font-size="10">真实距离 / cm</text>';
+    $(id).innerHTML=s;
+  }
+  function renderSampling(){
+    const now=performance.now(),wasActive=!!sampling.active;sampling.poll(now);if(wasActive&&!sampling.active){sampleDirty=true;saveSamples();}
+    const g=sampling.active,last=sampling.groups.at(-1);
+    $('sample-start').disabled=!!g||!sampleReady();$('sample-stop').disabled=!g;
+    for(const id of ['sample-kind','sample-x','sample-y','sample-seconds','sample-reference'])$(id).disabled=!!g;
+    for(const id of ['sample-export','sample-csv','sample-undo'])$(id).disabled=!sampling.groups.length||(id==='sample-undo'&&!!g);
+    const remaining=g?Math.max(0,Math.ceil((1000+g.seconds*1000-(now-sampling.started))/1000)):0;
+    const skips=last?Object.entries(last.skipped).map(([k,v])=>k+' '+v).join(' · '):'';
+    set('sample-progress',(g?'组 '+g.id+' · 剩余 '+remaining+' 秒 · ':'')+(sampling.message||'连接实时串口，KEY4 停车后开始采样')+(last?' · 本组 '+last.samples.length+' 帧':'')+(skips?'；跳过：'+skips:''));
+    const key=JSON.stringify(sampling.groups.map(g=>[g.id,g.samples.length,g.status]));
+    if(key!==sampleRenderKey){sampleRenderKey=key;const rows=sampling.groups.map(g=>({...g,summary:VisionXY.sampleSummary(g)}));$('sample-results').replaceChildren();
+      const pair=m=>m?m.bias.toFixed(2)+' / '+(m.sd===null?'—':m.sd.toFixed(2)):'—';
+      for(const r of rows){const tr=document.createElement('tr'),s=r.summary;for(const value of [r.id+' / '+VisionXY.kinds[r.kind],r.x+', '+r.y+' / '+s.truth_angle_deg.toFixed(1),r.samples.length,pair(s.range_cm),pair(s.angle_deg),r.status+(s.notes.length?' · '+s.notes.join('；'):'')]){const td=document.createElement('td');td.textContent=value;tr.append(td);}$('sample-results').append(tr);}
+      samplePlot('sample-range-plot',rows,'range_cm','距离平均偏差','cm');samplePlot('sample-angle-plot',rows,'angle_deg','角度平均偏差','°');
+    }
+    if(sampleDirty&&now-sampleSaveAt>2000)saveSamples();
+  }
+  let mapSelection=0,mapListKey='',mapRequested=false;
   let bounds={xmin:-60,xmax:60,ymin:-20,ymax:100};
-  const faultText={waiting_rv2:['等待 RV2 报文','视觉端保持 vision_simple_v2，主控通过 USART6 接收。'],rv2_observation:['RV2 观测已接收','逐个目标显示测距有效性；协议不提供任务确认或全局就绪。编号仅为本帧序号，不是跟踪 ID。'],upper_unavailable:['上视暂无新鲜观测','检查上摄像头状态；下视通信正常也不会保活上视坐标。'],none:['视觉已就绪','仍需按每个目标的有效标志判断位置。'],calibration_unverified:['标定尚未验证','空心点是视觉给出的估计位置；正式测距有效标志保持为 0。'],controller_lost:['视觉未收到有效任务','检查 USART6 接线与 rescue_json_v2 启动参数。'],model_fault:['视觉模型未就绪','检查视觉端模型加载情况。'],camera_fault:['相机异常','当前协议同时检查上下两路相机。'],task_frame_pending:['等待当前任务的新画面','任务已切换，等待视觉采集与处理。'],result_stale:['视觉结果过期','检查图像处理速度、串口吞吐与相机状态。'],vision_timeout:['视觉通信超时','等待视觉端继续发送新的 RV2 观测。'],uart_error:['视觉串口异常','检查 USART6 的 TX/RX、电平和共地。'],waiting_status:['等待视觉确认','检查视觉端是否选择 rescue_json_v2 协议。'],invalid_packet:['视觉报文校验或格式错误','应接收 RV2 文本；检查 vision_simple_v2 和 115200 波特率。'],calibration_fault:['视觉标定加载错误','查看香橙派运行日志。']};
+  const faultText={waiting_rv2:['等待 RV2 报文','视觉端保持 vision_simple_v2，主控通过 USART6 接收。'],rv2_observation:['RV2 观测已接收','按类别着色并显示估计坐标；#编号由主控场地位置关联产生，序编号仍为本帧序号。协议不提供任务确认或全局就绪。'],upper_unavailable:['上视暂无新鲜观测','检查上摄像头状态；下视通信正常也不会保活上视坐标。'],none:['视觉已就绪','仍需按每个目标的有效标志判断位置。'],calibration_unverified:['标定尚未验证','图中为视觉估计位置；颜色表示类别，原始有效标志保留在诊断中。'],controller_lost:['视觉未收到有效任务','检查 USART6 接线与 rescue_json_v2 启动参数。'],model_fault:['视觉模型未就绪','检查视觉端模型加载情况。'],camera_fault:['相机异常','当前协议同时检查上下两路相机。'],task_frame_pending:['等待当前任务的新画面','任务已切换，等待视觉采集与处理。'],result_stale:['视觉结果过期','检查图像处理速度、串口吞吐与相机状态。'],vision_timeout:['视觉通信超时','等待视觉端继续发送新的 RV2 观测。'],uart_error:['视觉串口异常','检查 USART6 的 TX/RX、电平和共地。'],waiting_status:['等待视觉确认','检查视觉端是否选择 rescue_json_v2 协议。'],invalid_packet:['视觉报文校验或格式错误','应接收 RV2 文本；检查 vision_simple_v2 和 115200 波特率。'],calibration_fault:['视觉标定加载错误','查看香橙派运行日志。']};
   function notice(text,error=false){$('notice').textContent=text;$('notice').className='notice'+(text?' on':'')+(error?' error':'');}
-  function clearData(){history.clear();snapshot=null;received=0;selected=null;lastList='';lastRaw='';$('raw').textContent='等待一行 vision_xy JSON 遥测……';}
+  function clearData(clearMap=true){steerPacket=null;steerReceived=0;steerLoaded=false;steerSubscribedAt=-Infinity;steerPoints=[];endSample('连接或数据流已重置，本组已结束');if(clearMap){mapMemory.clear();mapRequested=false;mapListKey='';mapSelection=0;}fieldHistory.clear();history.clear();snapshot=null;received=0;selected=null;lastList='';lastRaw='';$('raw').textContent='等待一行 vision_xy JSON 遥测……';}
+  function requestMap(){
+    if(closing||mode!=='live'||!port||mapMemory.epoch===null)return;
+    const chosen=port,epoch=writeEpoch;
+    writeChain=writeChain.catch(()=>{}).then(async()=>{
+      if(port!==chosen||mode!=='live'||epoch!==writeEpoch)return;
+      let writer;try{writer=chosen.writable.getWriter();await writer.write(new TextEncoder().encode('MAP\n'));}
+      catch(e){set('map-sync','地图同步请求失败：'+e.message,'warn');}finally{if(writer)writer.releaseLock();}
+    });
+  }
   function accept(line,assemblyMs=0){
+    if(line.startsWith('["S1",')){
+      try{const p=VisionXY.parseSteer(line),now=performance.now();
+        if(steerPacket){const delta=(p.tick-steerPacket.tick)>>>0;if(delta===0||(delta>=0x80000000&&now-steerReceived<1000))return;if(delta>=0x80000000)steerPoints=[];}
+        steerPacket=p;steerReceived=now;steerAssembly=Math.max(0,assemblyMs);
+        if(!steerLoaded){loadSteerGains();steerLoaded=true;}
+        steerPoints.push({...p,at:now,valid:!!p.source&&p.age_ms+steerAssembly<=400});
+        steerPoints=steerPoints.filter(v=>now-v.at<=20000).slice(-200);
+        records.push({received_at:new Date().toISOString(),source:mode,steering:p,raw:line});if(records.length>2000)records.shift();$('export').disabled=false;
+      }catch(e){badLines++;set('steer-status',e.message,'warn');}return;
+    }
+    if(line.startsWith('["M1",')){
+      try{const packet=VisionXY.parseMemory(line),now=performance.now();
+        if(mapMemory.accept(packet,now,mode==='demo'?0:assemblyMs)){fieldHistory.clear();snapshot=null;mapListKey='';mapSelection=0;mapRequested=false;}
+        if(!mapRequested&&mode==='live'){mapRequested=true;requestMap();}
+        records.push({received_at:new Date().toISOString(),source:mode,map:packet,raw:line});if(records.length>2000)records.shift();$('export').disabled=false;
+      }catch(e){badLines++;set('map-sync',e.message+'；保留已收到的地图，等待重传','warn');}
+      return;
+    }
+    if(line.startsWith('A1,')){try{confirmCommand(VisionXY.ack(line));}catch(e){set('control-status',e.message+'，执行状态未知','warn');}return;}
+    if(line.startsWith('ERR,')){set('control-status','主控拒绝指令：'+line,'warn');return;}
     try {
       const p=VisionXY.parse(line);
+      if(mode==='live'&&sampling.active){sampling.accept(p,performance.now(),Math.max(0,assemblyMs));sampleDirty=true;if(!sampling.active)saveSamples();}
       if(snapshot&&mode==='live'){const delta=(p.tick-snapshot.tick)>>>0;if(delta===0||(delta>=0x80000000&&performance.now()-received<1000))return;}
-      snapshot=p;received=performance.now();wireMs=mode==='demo'?0:Math.max(0,assemblyMs);goodLines++;
-      history.accept(p,received,wireMs);
+      snapshot=p;if(mode==='live'&&p.control&&p.control.id!==null)confirmCommand({id:p.control.id,status:p.control.status});received=performance.now();wireMs=mode==='demo'?0:Math.max(0,assemblyMs);goodLines++;
+      history.accept(p,received,wireMs);fieldHistory.accept(p,received,wireMs);mapMemory.observe(p);
       lastRaw=line;$('raw').textContent=JSON.stringify(p,null,2);records.push({received_at:new Date().toISOString(),source:mode,data:p,raw:line});if(records.length>2000)records.shift();$('export').disabled=false;
-      if(mode==='live')notice(p.mission?'任务固件：KEY1 启动，KEY4 停车并松开；断开网页不会停止车辆。':p.test===1?'当前是旧静止测试固件，尚无任务状态。':'未识别固件类型。',!p.mission&&p.test!==1);
+      if(mode==='live')notice(p.mission?'任务固件：KEY1 启动，KEY4 立即停车并松开；断开网页不会停止车辆。':p.test===1?'当前是旧静止测试固件，尚无任务状态。':'未识别固件类型。',!p.mission&&p.test!==1);
     }catch(e){badLines++;snapshot=null;lastList='';const reason=e.message||'解析失败';$('raw').textContent=reason+'\n收到 '+line.length+' 字符：\n'+line.slice(0,8192);records.push({received_at:new Date().toISOString(),source:mode,error:reason,raw:line.slice(0,8192)});if(records.length>2000)records.shift();$('export').disabled=false;if(mode==='live')notice(reason+'。请展开原始遥测或导出记录。',true);}
   }
+  function controlReady(){return !closing&&mode==='live'&&port&&snapshot&&snapshot.control&&performance.now()-received<1000;}
+  function clearCommands(){writeEpoch++;for(const p of awaiting.values())clearTimeout(p.timer);awaiting.clear();latestCommand=null;}
+  function confirmCommand(a){
+    const p=awaiting.get(a.id);if(!p)return;
+    clearTimeout(p.timer);awaiting.delete(a.id);
+    if(a.id===latestCommand)set(p.statusId||'control-status',p.label+' · '+(['主控已确认','主控已收到，按键未绑定动作','实体 KEY4 正按下，未执行','参数无效，未执行','旧指令，未执行'][a.status]),a.status===0?'good':'warn');
+  }
+  function sendControl(kind,args,label){
+    const quiet=kind==='T',statusId=(kind==='P'||steerOpen)?'steer-status':'control-status';
+    const emergency=kind==='K'&&args[0]===4;
+    if(sampling.active&&!emergency){if(!quiet)set(statusId,'固定物块采样中，请先结束本组再调参或行驶','warn');return;}
+    if(!(emergency?!closing&&mode==='live'&&port:controlReady())){if(!quiet)set(statusId,'未连接新版主控或遥测未更新，未发送','warn');return;}
+    if(emergency){writeEpoch++;for(const p of awaiting.values())clearTimeout(p.timer);awaiting.clear();}
+    if(snapshot&&snapshot.control&&snapshot.control.id!==null&&((commandSeq-snapshot.control.id)|0)<=0)commandSeq=snapshot.control.id;
+    const id=commandSeq=(commandSeq+1)>>>0;
+    let text;try{text=VisionXY.command(id,kind,args);}catch(e){set(statusId,e.message,'warn');return;}
+    if(!quiet)latestCommand=id;const epoch=writeEpoch,chosen=port;
+    if(!quiet)set(statusId,label+' · 等待发送');
+    writeChain=writeChain.catch(()=>{}).then(async()=>{
+      if(epoch!==writeEpoch||port!==chosen||mode!=='live')return;
+      let writer;
+      try{
+        writer=chosen.writable.getWriter();
+        if(!quiet)awaiting.set(id,{label,statusId,timer:setTimeout(()=>{awaiting.delete(id);if(latestCommand===id)set(statusId,label+' · 未收到确认，执行状态未知；不会自动重发','warn');},2000)});
+        if(!quiet&&latestCommand===id)set(statusId,label+' · 已发送，等待主控确认');
+        await writer.write(new TextEncoder().encode(text));
+      }catch(e){const pending=awaiting.get(id);if(pending)clearTimeout(pending.timer);awaiting.delete(id);if(!quiet&&latestCommand===id)set(statusId,'串口发送异常：'+e.message+'；执行状态未知','warn');}
+      finally{if(writer)writer.releaseLock();}
+    });
+  }
+  function loadSteerGains(){if(!steerPacket)return;for(const k of ['kp','ki','kd'])$('steer-'+k).value=String(steerPacket[k]);}
+  function openSteer(open){
+    steerOpen=open;$('steer-panel').hidden=!open;$('monitor-view').hidden=open;$('steer-open').textContent=open?'返回场地图':'角度环调参';
+    if(open)steerSubscribedAt=-Infinity;
+    else if(controlReady())sendControl('T',[0],'关闭角度遥测');
+    window.scrollTo(0,0);render();
+  }
+  $('steer-open').addEventListener('click',()=>openSteer(!steerOpen));$('steer-back').addEventListener('click',()=>openSteer(false));
+  $('sample-open').addEventListener('click',()=>{if(steerOpen){openSteer(false);$('sample-panel').scrollIntoView({behavior:'smooth',block:'start'});}});
+  $('steer-apply').addEventListener('click',()=>sendControl('P',['kp','ki','kd'].map(k=>$('steer-'+k).value.trim()===''?NaN:Number($('steer-'+k).value)),'更新角度 PID'));
+  $('steer-read').addEventListener('click',()=>{loadSteerGains();set('steer-status','已读取最新主控参数');});
+  $('steer-clear').addEventListener('click',()=>{steerPoints=[];renderSteer();});
+  $('steer-key1').addEventListener('click',()=>sendControl('K',[1],'KEY1'));
+  $('steer-key4').addEventListener('click',()=>sendControl('K',[4],'KEY4'));
+  function steerChart(id,keys,colors,title){
+    const svg=$(id),now=performance.now(),h=id==='steer-angle-chart'?240:200,w=900,left=62,top=35,bottom=h-35;
+    const points=steerPoints.filter(p=>now-p.at<=20000),vals=points.filter(p=>p.valid).flatMap(p=>keys.map(k=>p[k]));
+    const limit=Math.max(1,...vals.map(Math.abs))*1.12,px=at=>left+(w-left-18)*(1-(now-at)/20000),py=v=>(top+bottom)/2-v/limit*(bottom-top)/2;
+    let html='<text x="16" y="20" fill="#a9c3ca" font-size="13">'+title+'</text>';
+    for(const fraction of [-1,0,1]){const y=py(fraction*limit);html+='<path d="M'+left+' '+y+'H882" stroke="#293b43"/><text x="5" y="'+(y+4)+'" fill="#86a5af" font-size="11">'+(fraction*limit).toFixed(1)+'</text>';}
+    html+='<text x="62" y="'+(h-10)+'" fill="#86a5af" font-size="11">−20 s</text><text x="850" y="'+(h-10)+'" fill="#86a5af" font-size="11">现在</text>';
+    keys.forEach((key,i)=>{let d='',pen=false;for(const p of points){if(!p.valid){pen=false;continue;}d+=(pen?'L':'M')+px(p.at).toFixed(2)+' '+py(p[key]).toFixed(2);pen=true;}html+='<path d="'+d+'" fill="none" stroke="'+colors[i]+'" stroke-width="2"/>';});svg.innerHTML=html;
+  }
+  function renderSteer(){
+    if(!steerOpen)return;const now=performance.now(),p=steerPacket,ready=controlReady();
+    if(ready&&!sampling.active&&now-steerSubscribedAt>2000){steerSubscribedAt=now;sendControl('T',[1],'打开角度遥测');}
+    const recent=mode==='live'&&p&&now-steerReceived<1000,age=p&&p.age_ms!==null?p.age_ms+steerAssembly+now-steerReceived:null,valid=recent&&p.source&&age<=400;
+    set('steer-source',recent?(p.source===1?'正在追球':p.source===2?'正在追踪点选坐标':'已停车 / 暂无目标'):'等待角度遥测',valid?'good':'warn');
+    set('steer-age',age===null?'无有效角度输入':'距上次 PID 更新 '+Math.ceil(age)+' ms'+(valid?'':' · 已过期'));
+    for(const key of ['target','current','error','output'])set('steer-'+key,valid?p[key].toFixed(2):'—');
+    for(const key of ['p','i','d'])set('steer-'+key+'-term',key.toUpperCase()+' 项：'+(valid?p[key].toFixed(3)+' °/s':'—'));
+    set('steer-gains',p?'主控当前参数：P '+p.kp+' / I '+p.ki+' / D '+p.kd+(recent?'':'（上次接收）'):'主控当前参数：等待新版调参固件');
+    $('steer-apply').disabled=!(ready&&recent)||!!sampling.active;$('steer-read').disabled=!recent;
+    $('steer-key1').disabled=!ready||!!sampling.active;$('steer-key4').disabled=!(mode==='live'&&port&&!closing);
+    steerChart('steer-angle-chart',['target','current','error'],['#e6eff2','#79ddd5','#ffbd64'],'目标 / 实际 / 差值（°）');
+    steerChart('steer-output-chart',['output'],['#b7a0fa'],'转向指令（°/s）');
+  }
+  for(let n=1;n<=4;n++)$('remote-key'+n).addEventListener('click',()=>sendControl('K',[n],'KEY'+n));
+  $('field-svg').addEventListener('click',event=>{
+    const svg=$('field-svg'),matrix=svg.getScreenCTM();if(!matrix)return;
+    const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;
+    const local=p.matrixTransform(matrix.inverse()),target=VisionXY.fieldClick(local.x,local.y);
+    if(!target)return;
+    sendControl('G',[target.x,target.y,Number($('goto-speed').value)],'前往 ('+target.x+', '+target.y+') cm');
+  });
   function stopDemo(){if(demoTimer)clearInterval(demoTimer);demoTimer=null;if(mode==='demo')mode='idle';$('demo').textContent='查看演示';clearData();notice('');}
   async function disconnect(){
-    closing=true;
+    closing=true;clearCommands();
+    await writeChain.catch(()=>{});
     try{if(reader)await reader.cancel();if(readTask)await readTask;if(port)await port.close();}catch(e){}
-    port=null;reader=null;readTask=null;mode='idle';closing=false;clearData();$('connect').textContent='连接遥测串口';$('demo').disabled=false;notice('串口已断开，旧目标已清除。');
+    port=null;reader=null;readTask=null;mode='idle';set('control-status','串口已断开；车辆状态未知','warn');closing=false;clearData(false);$('connect').textContent='连接遥测串口';$('demo').disabled=false;notice('串口已断开；地图记录保留为历史，重新连接后重新同步。');render();
   }
   async function readLoop(p){
-    const decoder=new TextDecoder();const lines=new VisionXY.Lines(accept,()=>{badLines++;clearData();notice('遥测行过长，正在等待下一条完整报文。',true);});
+    const decoder=new TextDecoder();const lines=new VisionXY.Lines(accept,()=>{badLines++;clearData(false);notice('遥测行过长，正在等待下一条完整报文。',true);});
     try {reader=p.readable.getReader();while(true){const{value,done}=await reader.read();if(done)break;if(value)lines.push(decoder.decode(value,{stream:true}),performance.now());}}
     catch(e){if(!closing)notice('串口连接中断：'+e.message,true);}
-    finally{if(reader){reader.releaseLock();reader=null;}if(!closing){try{await p.close();}catch(e){}port=null;mode='idle';clearData();$('connect').textContent='连接遥测串口';$('demo').disabled=false;if(!$('notice').textContent)notice('串口连接已结束，旧目标已清除。');}}
+    finally{if(reader){reader.releaseLock();reader=null;}if(!closing){try{await p.close();}catch(e){}port=null;mode='idle';clearCommands();clearData(false);$('connect').textContent='连接遥测串口';$('demo').disabled=false;if(!$('notice').textContent)notice('串口连接已结束；地图保留为历史。');}}
   }
   $('connect').addEventListener('click',async()=>{
     if(port){await disconnect();return;}
     if(!navigator.serial){notice('此浏览器不支持 Web Serial。请用桌面版 Chrome 或 Edge 打开此 HTML 文件。',true);return;}
     stopDemo();$('connect').disabled=true;mode='connecting';notice('请选择现有 UART5 遥测 COM 口（115200 / 8N1）。');
-    try{const chosen=await navigator.serial.requestPort();await chosen.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});port=chosen;mode='live';goodLines=badLines=0;clearData();$('connect').textContent='断开串口';$('demo').disabled=true;notice('已打开串口，等待静止视觉测试固件发送数据……');readTask=readLoop(chosen);}
+    try{const chosen=await navigator.serial.requestPort();await chosen.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});port=chosen;mode='live';goodLines=badLines=0;clearData();$('connect').textContent='断开串口';$('demo').disabled=true;notice('已打开串口，等待主控发送遥测数据……');readTask=readLoop(chosen);}
     catch(e){mode='idle';port=null;notice(e.name==='NotFoundError'?'已取消串口选择。':'无法打开串口：'+e.message+'。请先关闭占用同一 COM 口的 SerialWeb 或其他软件。',e.name!=='NotFoundError');}
     finally{$('connect').disabled=false;}
   });
   $('demo').addEventListener('click',()=>{
-    if(mode==='demo'){stopDemo();return;}if(port)return;clearData();mode='demo';$('demo').textContent='停止演示';notice('演示模式 · 以下为合成数据，不是实车测量，也没有连接串口。');let n=0;
-    const sample=()=>{n++;const x=18+4*Math.sin(n/12),y=44+2*Math.cos(n/18);
-      const body=JSON.stringify(['V3',n*150,1,n*4,0,0,0,n,100,0,1,0,[[1,Math.round(Math.hypot(x,y)*10),Math.round(Math.atan2(x,y)*18000/Math.PI),0],[2,712,-1971,0],[1,-1,null,0]],Math.floor(n/20)%2?50:100,[n,30,0,1,[[1,Math.floor(n/20)%2?0:1],[2,0]]],[Math.floor(n/20)%2?30:99,0,0,1,Math.floor(n/20)%2?0:1]]);
-      accept(body+'*'+VisionXY.crc16(body).toString(16).padStart(4,'0'));};sample();demoTimer=setInterval(sample,150);
+    if(mode==='demo'){stopDemo();return;}if(port)return;clearData();mode='demo';$('demo').textContent='停止演示';notice('演示模式 · 以下为合成数据，不是实车测量，也没有连接串口。');let n=0;const demoHistory=[[],[],[],[]];
+    const sample=()=>{n++;const rx=260+15*Math.sin(n/24),ry=80+8*Math.cos(n/24),yaw=25*Math.sin(n/30),a=yaw*Math.PI/180,world=[[2350,1600],[2100,1900],[1700,1700],[1800,1200]],kinds=[1,2,3,4];
+      const objects=world.map(([x,y],i)=>{const dx=x/10-rx,dy=y/10-ry,bx=dx*Math.cos(a)-dy*Math.sin(a),by=dx*Math.sin(a)+dy*Math.cos(a);return [kinds[i],Math.round(Math.hypot(bx,by)*10),Math.round(Math.atan2(bx,by)*18000/Math.PI),0];});
+      const pose=[Math.round(rx*10),Math.round(ry*10),Math.round(yaw*100)];
+      const mapped=world.map((v,i)=>[...v,i+1,Math.round(40+objects[i][1]*0.05)]);if(n%2){objects.reverse();mapped.reverse();}
+      const body=JSON.stringify(['V5',n*150,1,n*4,0,0,0,n,100,0,1,0,objects,50,[n,30,1,1,[]],[0,0,0,0,0],[pose,1,pose,mapped,[2850,800,0],[0,0,0]]]);
+      accept(body+'*'+VisionXY.crc16(body).toString(16).padStart(4,'0'));
+      world.forEach(([x,y],i)=>{const h=demoHistory[i];h.push([n*150-100,x+Math.round(8*Math.sin(n/4+i)),y+Math.round(6*Math.cos(n/5+i)),1]);if(h.length>8)h.shift();const last=h[h.length-1];
+        const m=JSON.stringify(['M1',n*150,1,n,4,0,[i+1,kinds[i],last[1],last[2],80,last[0],last[0],n,1,0,n,h]]);accept(m+'*'+VisionXY.crc16(m).toString(16).padStart(4,'0'));});
+    };sample();demoTimer=setInterval(sample,150);
   });
   $('range').addEventListener('change',()=>{const r=Number($('range').value);bounds={xmin:-r*.6,xmax:r*.6,ymin:-r*.2,ymax:r};});
   $('fit').addEventListener('click',()=>{const d=display();if(!d.points.length)return;const xs=d.points.map(p=>p.x_cm),ys=d.points.map(p=>p.y_cm);const xr=Math.max(30,...xs.map(Math.abs))*1.25;bounds={xmin:-xr,xmax:xr,ymin:Math.min(-15,...ys)-10,ymax:Math.max(50,...ys)+15};});
   $('export').addEventListener('click',()=>{const blob=new Blob([records.map(r=>JSON.stringify(r)).join('\n')+'\n'],{type:'application/x-ndjson'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='vision-xy-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jsonl';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);});
   function display(){const now=performance.now(),active=mode==='demo'||mode==='live';return history.display(VisionXY.derive(snapshot,now-received,wireMs,active),now,active);}
   function set(id,text,klass=''){$(id).textContent=text;$(id).classList.remove('good','warn','bad');if(klass)$(id).classList.add(klass);}
+  $('field-clear').addEventListener('click',()=>{fieldHistory.trail=[];});
+  $('field-circles').addEventListener('change',drawField);
+  $('field-history').addEventListener('change',drawField);
+  $('map-select').addEventListener('change',()=>{mapSelection=Number($('map-select').value);drawField();});
+  $('map-sync-button').addEventListener('click',requestMap);
+  $('map-export').addEventListener('click',()=>{
+    const blob=new Blob([JSON.stringify({exported_at:new Date().toISOString(),epoch:mapMemory.epoch,total:mapMemory.total,records:mapMemory.display(performance.now(),mode==='live'||mode==='demo')},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='field-map-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  });
+  function renderMemory(points,active){
+    const supported=mapMemory.epoch!==null,key=points.map(p=>p.track_id+':'+p.kind).join(',');
+    if(key!==mapListKey){mapListKey=key;const select=$('map-select');select.replaceChildren();
+      for(const p of points){const opt=document.createElement('option');opt.value=p.track_id;opt.textContent='#'+p.track_id+' '+VisionXY.kinds[p.kind];select.append(opt);}
+      if(!points.some(p=>p.track_id===mapSelection))mapSelection=points.length?points[0].track_id:0;
+      select.value=mapSelection;
+    }
+    $('map-select').disabled=!points.length;$('map-export').disabled=!supported;$('map-sync-button').disabled=mode!=='live'||!port||!supported;
+    set('map-sync',!supported?'等待主控地图记录':(active?'已同步 ':'断开 · 保留历史 ')+points.length+' / '+mapMemory.total+' 个物块'+(mapMemory.unmapped?' · 容量已满，未覆盖旧记录':''),mapMemory.unmapped?'warn':'');
+    const p=points.find(p=>p.track_id===mapSelection);
+    set('map-detail',p?'#'+p.track_id+' '+VisionXY.kinds[p.kind]+' · 地图位置 ('+p.x.toFixed(1)+', '+p.y.toFixed(1)+') cm · '+(p.review?'位置跳变待确认':p.historical?'历史位置':'新鲜位置')+' · 最近观测 '+Math.round(p.seenAge)+' ms 前 · 已观测 '+p.observations+' 次':'等待物块记录；超过 400 ms、空帧或断连都不会删除主控地图。',p&&p.review?'warn':'');
+    const body=$('map-history-body');body.replaceChildren();
+    if(p)for(const h of [...p.history].reverse()){
+      const tr=document.createElement('tr');for(const value of [Math.round(h.age)+' ms',h.x.toFixed(1),h.y.toFixed(1),h.accepted?'已采纳':'跳变待确认']){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);
+    }
+  }
+  function drawField(){
+    const now=performance.now(),active=mode==='live'||mode==='demo',d=fieldHistory.display(snapshot,now,now-received,active),f=d.field||mapMemory.field;
+    const remembered=mapMemory.display(now,active),points=mapMemory.epoch!==null?remembered:d.points;
+    const px=x=>30+x,py=y=>330-y;
+    const im=VisionXY.imuStatus(snapshot,now-received,wireMs,mode==='live'||mode==='demo');
+    let svg='<defs><clipPath id="field-clip"><rect x="30" y="30" width="300" height="300"/></clipPath></defs>';
+    const rect=(x,y,w,h,color,stroke='#53656d')=>'<rect x="'+px(x)+'" y="'+py(y+h)+'" width="'+w+'" height="'+h+'" fill="'+color+'" stroke="'+stroke+'" stroke-width="0.6"/>';
+    const label=(x,y,text,color='#adc1c8',size=6)=>'<text x="'+px(x)+'" y="'+py(y)+'" fill="'+color+'" font-size="'+size+'" text-anchor="middle">'+text+'</text>';
+    svg+=rect(0,0,300,300,'#142126');
+    for(let a=0;a<=300;a+=50){svg+='<path d="M'+px(a)+' 30V330 M30 '+py(a)+'H330" stroke="#34464d" stroke-width="0.4"/>';svg+=label(a,-10,a)+label(-14,a,a);}
+    for(const [x,y,n] of [[0,270,1],[270,270,2],[0,0,3],[270,0,4]])svg+=rect(x,y,30,30,'#6b216c')+label(x+15,y+12,n,'#f2bcf7',10);
+    svg+=rect(117,0,66,36,'#613c78')+rect(120,3,60,30,'#125a78')+rect(149,3,2,30,'#172025');
+    svg+=rect(117,264,66,36,'#613c78')+rect(120,267,60,30,'#7b3036')+rect(149,267,2,30,'#172025');
+    svg+=label(135,16,'伤员')+label(166,16,'物资')+label(135,280,'物资')+label(166,280,'伤员');
+    for(const edge of [0,270])for(const y of [35,46,57,237,248,259])svg+=rect(edge,y,30,6,'#25323a');
+    for(const edge of [0,270])for(const x of [35,46,57,237,248,259])svg+=rect(x,edge,6,30,'#25323a');
+    svg+=label(150,150,'场地中心',undefined,5)+label(150,-23,'X / cm →')+label(0,310,'Y / cm ↑');
+    svg+='<g clip-path="url(#field-clip)">';
+    if(d.trail.length)svg+='<polyline points="'+d.trail.map(p=>px(p.x)+','+py(p.y)).join(' ')+'" fill="none" stroke="#6ad0c7" stroke-opacity="0.55" stroke-width="1"/>';
+    if(f){svg+='<circle cx="'+px(f.origin.x)+'" cy="'+py(f.origin.y)+'" r="5" fill="none" stroke="#f08080" stroke-dasharray="2 2"/>';
+      const r=f.robot;svg+='<g transform="translate('+px(r.x)+' '+py(r.y)+') rotate('+r.yaw+')" opacity="'+(d.recent&&(!im.available||im.fresh)?1:.35)+'"><path d="M0 -8L-5 5L0 2L5 5Z" fill="#7be1d6" stroke="#d7fffa" stroke-width=".6"/></g>';
+    }
+    const selectedMap=remembered.find(p=>p.track_id===mapSelection);
+    if($('field-history').checked&&selectedMap){const color=VisionXY.targetStyle(selectedMap.kind).stroke;
+      svg+='<polyline class="object-history" points="'+selectedMap.history.map(p=>px(p.x)+','+py(p.y)).join(' ')+'" fill="none" stroke="'+color+'" stroke-opacity=".6" stroke-width=".5" stroke-dasharray="1 1"/>';
+      for(const h of selectedMap.history)svg+='<circle class="history-sample" cx="'+px(h.x)+'" cy="'+py(h.y)+'" r="1.2" fill="'+(h.accepted?color:'none')+'" stroke="'+(h.accepted?color:'#ffbf6c')+'" stroke-width=".5"/>';
+    }
+    for(const p of points){const style=VisionXY.targetStyle(p.kind);svg+='<g opacity="'+(p.historical?.55:1)+'">';
+      if($('field-circles').checked&&p.radius!==null)svg+='<circle class="match-circle" cx="'+px(p.x)+'" cy="'+py(p.y)+'" r="'+p.radius+'" fill="none" stroke="'+style.stroke+'" stroke-opacity=".5" stroke-width=".6" stroke-dasharray="2 2"/>';
+      svg+='<circle class="field-target" data-track="'+p.track_id+'" cx="'+px(p.x)+'" cy="'+py(p.y)+'" r="2.5" fill="'+style.fill+'" stroke="'+style.stroke+'" stroke-width=".8"'+(p.historical?' stroke-dasharray="1 1"':'')+'/>';
+      svg+=label(p.x,p.y+5,VisionXY.targetLabel(p)+' '+p.x.toFixed(1)+','+p.y.toFixed(1),style.text,4.5)+'</g>';}
+    if(mapMemory.epoch!==null&&active&&d.recent&&d.age!==null&&d.age<=400){
+      for(const p of d.points){const color=VisionXY.targetStyle(p.kind).stroke;
+        svg+='<path class="live-observation" d="M'+(px(p.x)-1.5)+' '+py(p.y)+'h3 M'+px(p.x)+' '+(py(p.y)-1.5)+'v3" stroke="'+color+'" stroke-width=".8"/>';
+      }
+    }
+    const goal=snapshot&&snapshot.control&&snapshot.control.target;
+    if(goal){svg+='<g id="goto-marker" opacity="'+(d.recent?1:.35)+'"><circle cx="'+px(goal.x)+'" cy="'+py(goal.y)+'" r="6" fill="none" stroke="#ff8585" stroke-width="1.2"/><path d="M'+(px(goal.x)-9)+' '+py(goal.y)+'h18 M'+px(goal.x)+' '+(py(goal.y)-9)+'v18" stroke="#ff8585" stroke-width=".8"/>'+label(goal.x,goal.y+10,'行驶目标','#ff8585',5)+'</g>';}
+    svg+='</g>';$('field-drawing').innerHTML=svg;
+    set('field-state',!f?'等待场地遥测 V4–V7':!d.recent?'遥测中断 · 图为历史':f.aligned?(d.age!==null&&d.age>400?'观测已过期 · 淡色历史':'时间对齐完成 · 场地估计'):'等待可对齐的视觉帧',f&&d.recent&&f.aligned?'good':'warn');
+    const fmt=p=>p?'X '+p.x.toFixed(1)+' / Y '+p.y.toFixed(1)+' cm，朝向 '+p.yaw.toFixed(1)+'°':'—';
+    set('field-pose',(im.available?'小车（IMU 朝向）：':'小车（旧版编码器朝向）：')+(im.available&&!im.ready?'等待 IMU 首帧':fmt(f&&f.robot)));
+    set('field-imu',!im.available?'IMU：旧版固件未上报':!im.ready?'IMU：等待首帧 · 朝向尚未建立':(im.fresh?'IMU：正常':'IMU：过期 / 未对齐 · 箭头为最后朝向')+'，年龄 '+Math.round(im.age)+' ms，原始 yaw '+im.raw.toFixed(2)+'°',im.fresh?'good':'warn');set('field-observed','观测时车位：'+fmt(f&&f.observed));
+    set('field-origin','启动位置：'+fmt(f&&f.origin));set('field-extrinsic','视觉原点偏移：'+fmt(f&&f.extrinsic));
+    renderMemory(remembered,active);
+    set('field-targets',points.length?points.map(p=>VisionXY.targetLabel(p)+' '+VisionXY.kinds[p.kind]+'：('+p.x.toFixed(1)+', '+p.y.toFixed(1)+') cm'+(p.historical?' [历史]':'')).join('；'):'暂无可绘制的场地目标');
+  }
   function draw(d){
     const box=canvas.getBoundingClientRect(),w=box.width,h=box.height,ratio=devicePixelRatio||1;
     if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);}
@@ -227,10 +698,10 @@ if(typeof document!=='undefined') {
     ctx.fillStyle='#a4bec3';ctx.textAlign='center';ctx.fillText('Y / 前方',origin.x,base.y-13);ctx.textAlign='right';ctx.fillText('X / 右侧',end.x,end.y+34);
     ctx.save();ctx.translate(origin.x,origin.y);ctx.fillStyle='#284548';ctx.strokeStyle='#7be1d6';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-13,10);ctx.lineTo(-13,-9);ctx.lineTo(0,-20);ctx.lineTo(13,-9);ctx.lineTo(13,10);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#7be1d6';ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);ctx.fill();ctx.font='11px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.fillText('小车原点',0,27);ctx.restore();
     let outside=0;
-    for(const o of d.points){if(o.x_cm<bounds.xmin||o.x_cm>bounds.xmax||o.y_cm<bounds.ymin||o.y_cm>bounds.ymax){outside++;continue;}const p=map(o.x_cm,o.y_cm),chosen=selected===o.id,col=o.historical?'#879da5':o.control?'#9be3a9':'#ffbf6c';
-      ctx.save();ctx.strokeStyle=chosen?'#7be1d6':'#344b50';ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(origin.x,origin.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.setLineDash([]);if(chosen){ctx.fillStyle='#7be1d622';ctx.beginPath();ctx.arc(p.x,p.y,17,0,Math.PI*2);ctx.fill();}
-      ctx.strokeStyle=col;ctx.fillStyle=o.control?col:'#172025';ctx.lineWidth=2;ctx.setLineDash(o.historical?[2,3]:[]);ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.setLineDash([]);ctx.font='11px "Microsoft YaHei",sans-serif';ctx.fillStyle='#dfe9e9';ctx.textAlign=p.x>w-155?'right':'left';const dx=p.x>w-155?-12:12;ctx.fillText('#'+o.id+' '+VisionXY.kinds[o.kind]+(o.historical?' · 上次位置':''),p.x+dx,p.y-8);ctx.font='11px Consolas,monospace';ctx.fillStyle=col;ctx.fillText(o.x_cm.toFixed(1)+', '+o.y_cm.toFixed(1)+' cm',p.x+dx,p.y+9);ctx.restore();hits.push({id:o.id,x:p.x,y:p.y});}
-    set('plot-hint',d.historical?'灰色虚线点：上次位置，年龄 '+Math.ceil(d.age)+' ms，'+(d.expired?'已过期':'等待更新')+' / 不用于控制':outside?outside+' 个坐标在显示范围外 · 点击适配目标':'点击目标查看坐标');
+    for(const o of d.points){if(o.x_cm<bounds.xmin||o.x_cm>bounds.xmax||o.y_cm<bounds.ymin||o.y_cm>bounds.ymax){outside++;continue;}const p=map(o.x_cm,o.y_cm),chosen=selected===VisionXY.targetKey(o),style=VisionXY.targetStyle(o.kind),col=style.stroke;
+      ctx.save();ctx.globalAlpha=o.historical?.35:1;ctx.strokeStyle=chosen?'#7be1d6':'#344b50';ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(origin.x,origin.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.setLineDash([]);if(chosen){ctx.fillStyle='#7be1d622';ctx.beginPath();ctx.arc(p.x,p.y,17,0,Math.PI*2);ctx.fill();}
+      ctx.strokeStyle=col;ctx.fillStyle=style.fill;ctx.lineWidth=2;ctx.setLineDash(o.historical?[2,3]:[]);ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.setLineDash([]);ctx.font='11px "Microsoft YaHei",sans-serif';ctx.fillStyle='#dfe9e9';ctx.textAlign=p.x>w-155?'right':'left';const dx=p.x>w-155?-12:12;ctx.fillText(VisionXY.targetLabel(o)+' '+VisionXY.kinds[o.kind]+(o.historical?' · 上次位置':''),p.x+dx,p.y-8);ctx.font='11px Consolas,monospace';ctx.fillStyle=col;ctx.fillText(o.x_cm.toFixed(1)+', '+o.y_cm.toFixed(1)+' cm',p.x+dx,p.y+9);ctx.restore();hits.push({id:VisionXY.targetKey(o),x:p.x,y:p.y});}
+    set('plot-hint',d.historical?'淡色虚线点：上次位置，年龄 '+Math.ceil(d.age)+' ms，'+(d.expired?'已过期':'等待更新')+' / 不用于控制':outside?outside+' 个坐标在显示范围外 · 点击适配目标':'点击目标查看坐标');
     $('empty').style.display=d.points.length?'none':'block';const empty=$('empty');
     empty.querySelector('strong').textContent=!snapshot?'等待上摄像头观测':!d.fresh?'暂无新鲜目标位置':d.rows.length?'已识别目标，暂无坐标':'画面中没有目标';
     empty.querySelector('span').textContent=!snapshot?'连接遥测串口后，目标将在这里出现':!d.fresh?(d.expired?'过期位置已清除，等待新的视觉帧':'等待具有年龄和坐标的视觉帧'):d.rows.length?'距离或角度未知，不将它们绘制在原点':'可放置一个绿色物块检查识别';
@@ -238,9 +709,9 @@ if(typeof document!=='undefined') {
   canvas.addEventListener('click',e=>{const b=canvas.getBoundingClientRect();const hit=hits.find(p=>Math.hypot(p.x-e.clientX+b.left,p.y-e.clientY+b.top)<20);if(hit){selected=hit.id;lastList='';}});
   function renderList(d){const key=JSON.stringify([d.rows,selected]);if(key===lastList)return;lastList=key;const list=$('targets');list.replaceChildren();set('list-count',d.rows.length+' 个');
     if(!d.rows.length){const el=document.createElement('div');el.className='no-target';el.textContent=snapshot?'没有新鲜目标':'尚未接收到目标';list.append(el);return;}
-    for(const o of d.rows){const el=document.createElement('button');el.className='target-row'+(o.id===selected?' selected':'');el.setAttribute('aria-label','#'+o.id+' '+VisionXY.kinds[o.kind]);
-      const top=document.createElement('div');top.className='target-top';const title=document.createElement('span');title.textContent='#'+o.id+'  '+VisionXY.kinds[o.kind];const state=document.createElement('span');state.className='target-state '+(o.historical?'':o.control?'good':'warn');state.textContent=o.historical?(o.expired?'上次位置 / 已过期':'上次位置 / 等待更新'):!o.plottable?'无坐标':o.control?'测距有效':'仅估计';top.append(title,state);
-      const bottom=document.createElement('div');bottom.className='target-bottom';const x=document.createElement('span'),y=document.createElement('span');x.textContent='X '+(o.plottable?o.x_cm.toFixed(1)+' cm':'—');y.textContent='Y '+(o.plottable?o.y_cm.toFixed(1)+' cm':'—');bottom.append(x,y);el.append(top,bottom);el.onclick=()=>{selected=o.id;lastList='';};list.append(el);}
+    for(const o of d.rows){const el=document.createElement('button');el.className='target-row'+(VisionXY.targetKey(o)===selected?' selected':'');el.setAttribute('aria-label','#'+o.id+' '+VisionXY.kinds[o.kind]);
+      const top=document.createElement('div');top.className='target-top';const title=document.createElement('span');title.textContent=VisionXY.targetLabel(o)+'  '+VisionXY.kinds[o.kind];title.style.color=VisionXY.targetStyle(o.kind).text;const state=document.createElement('span');state.className='target-state '+(o.historical?'':o.control?'good':'warn');state.textContent=o.historical?(o.expired?'上次位置 / 已过期':'上次位置 / 等待更新'):!o.plottable?'无坐标':'估计坐标';top.append(title,state);
+      const bottom=document.createElement('div');bottom.className='target-bottom';const x=document.createElement('span'),y=document.createElement('span');x.textContent='X '+(o.plottable?o.x_cm.toFixed(1)+' cm':'—');y.textContent='Y '+(o.plottable?o.y_cm.toFixed(1)+' cm':'—');bottom.append(x,y);el.append(top,bottom);el.onclick=()=>{selected=VisionXY.targetKey(o);lastList='';};list.append(el);}
   }
   let lastLowerList='';
   function renderLower(p,elapsed,active){
@@ -259,24 +730,30 @@ if(typeof document!=='undefined') {
   function render(){const d=display(),p=snapshot,elapsed=performance.now()-received,live=mode==='live',demo=mode==='demo';
     set('source-value',demo?'演示数据':live?'实时串口':mode==='connecting'?'选择串口中':'等待连接',demo?'warn':live?'good':'');
     set('source-detail',demo?'合成数据 · 非实车':live?'UART5 · 115200 · 8N1':'UART5 · 115200 · 8N1');
-    $('mode-badge').lastElementChild.textContent=demo?'演示模式':'只读监视';$('mode-badge').classList.toggle('warn',demo);
+    $('mode-badge').lastElementChild.textContent=demo?'演示模式':(controlReady()?'双向控制':'遥测监视');$('mode-badge').classList.toggle('warn',demo);
     set('count-label',d.historical?'最近观测目标':'当前画面目标');set('count-value',p||d.historical?String(d.rows.length):'—');set('count-detail',p?d.points.length+' 个具有坐标 · '+(d.rows.length-d.points.length)+' 个坐标未知':'等待上摄像头报文');
     set('age-value',d.age===null?'—':Math.ceil(d.age)+' ms',VisionXY.ageExpired(d.age)?'warn':'');
-    const valid=d.points.filter(o=>o.control).length;set('valid-value',d.historical?(d.expired?'上次位置 / 已过期':'上次位置 / 等待更新'):valid?valid+' 个测距有效':d.points.length?'仅估计位置':p&&!d.fresh?(d.expired?'已过期 / 无帧':d.age===null?'年龄未知 / 无帧':'等待新观测'):'暂无坐标',valid?'good':d.points.length?'warn':'');
-    set('valid-detail',d.historical?'灰色保留帧 '+d.frame+' 的坐标；不会延长测距有效期':d.points.length?'低速任务允许使用新鲜估计坐标；实心表示测距有效':'未知位置不绘制为原点');
+    const valid=0;set('valid-value',d.historical?(d.expired?'上次位置 / 已过期':'上次位置 / 等待更新'):d.points.length?'估计位置':p&&!d.fresh?(d.expired?'已过期 / 无帧':d.age===null?'年龄未知 / 无帧':'等待新观测'):'暂无坐标',valid?'good':d.points.length?'warn':'');
+    set('valid-detail',d.historical?'淡色保留帧 '+d.frame+' 的坐标；不会延长测距有效期':d.points.length?'颜色表示类别；固定编号来自场地关联，原始有效标志保留在诊断中':'未知位置不绘制为原点');
     set('pc-status',demo?'演示输入':live?(p&&elapsed<1000?'正在接收':'等待遥测'):'未连接',demo?'warn':live&&p&&elapsed<1000?'good':'');
     const recent=p&&elapsed<1000&&(live||demo);set('vision-status',recent?(p.link?'已连接':'未连接'):'—',recent&&p.link?'good':'');set('ack-status',recent?(p.protocol==='vision_simple_v2'?'RV2 / 不适用':p.ack?'已确认':'等待确认'):'—',recent&&p.ack?'good':'');set('ready-status',recent?(p.protocol==='vision_simple_v2'?'RV2 / 未提供':p.ready?'已就绪':'未就绪'):'—',recent?(p.ready?'good':'warn'):'');set('frame-status',p?String(p.frame):'—');set('test-lock',recent&&p.mission?'低速任务固件':recent&&p.test===1?'静止测试固件':'未确认固件',recent?'good':'');
-    const fault=recent?(faultText[p.fault]||[p.fault,'查看原始遥测与视觉端日志。']):p?['遥测已过期','灰色历史位置仅短时保留，等待新的遥测数据。']:['尚无数据','本页面只读取遥测，不发送运动指令。'];set('fault-title',fault[0]);set('fault-detail',fault[1]);
+    const fault=recent?(faultText[p.fault]||[p.fault,'查看原始遥测与视觉端日志。']):p?['遥测已过期','淡色历史位置仅短时保留，等待新的遥测数据。']:['尚无数据','新版主控支持场地点选和 KEY1–4 控制。'];set('fault-title',fault[0]);set('fault-detail',fault[1]);
     set('metrics',p?'视觉 RX '+p.rx+' · CRC/格式 '+p.bad+' · UART '+p.uart_errors+'\n视觉 TX '+p.tx+' · 遥测丢帧 '+p.drops+' · 页面无效行 '+badLines:'RX — · CRC/格式错误 — · UART 错误 —');
-    const taskNames={0:'等待启动',1:'任务初始化',10:'寻找普通物块',20:'旧版对准步骤',30:'边走边对准',40:'停车夹持',90:'任务失败 / 已停车',99:'夹持动作完成 / 已停车'};
+    const taskNames={0:'等待启动',1:'任务初始化',10:'寻找普通物块',20:'旧版对准步骤',30:'边走边对准',40:'停车夹持',50:'坐标行驶',51:'坐标已到达',90:'任务失败 / 已停车',99:'夹持动作完成 / 已停车'};
     const taskReasons=['正常','KEY4 已停止','视觉无帧 / 过期 / 故障','普通物块缺少可用距离/角度，停车等待','没有可用普通物块，停车等待，恢复后继续','夹持区域有多个或非普通物块，停车等待','发现危险物，停车等待，移除后继续','寻找超时','对准超时','靠近超时','超过本次行驶距离限制','已到最小距离但未进入 ROI','夹持目标连续 3 帧离区','夹持确认超时','非法任务步骤','视觉串口错误，停车等待恢复','上视无帧 / 过期 / 故障，停车等待','下视无帧 / 过期 / 故障，停车等待'];
     const m=recent&&p.mission;
     set('task-state',m?'case '+m.step+' · '+taskNames[m.step]:p&&p.mission?'遥测中断 · 实际任务状态未知':'等待任务遥测',m&&m.step===90?'bad':'');
-    const taskActions={10:'正在选取最近的普通物块',20:'切换到边走边对准',30:'前进以 30 cm/s² 加速至 50 cm/s，方向 PID 修正（P=4，I=0，D=2），轮速超限才缩放',40:'已停车夹持，保持闭合',99:'夹持完成，保持停车及闭合'};
+    const taskActions={10:'正在选取最近的普通物块',20:'切换到边走边对准',30:'前进速度指令 50 cm/s，方向 PID 修正，轮速超限才缩放',40:'已给夹持指令，立即停车并保持闭合',99:'夹持完成，保持停车及闭合',50:'复用追球 PID 边走边对准；保持设定速度，进入到位区后锁定停车',51:'已到达指定坐标，保持停车'};
     set('task-reason',m?(m.reason===0?(taskActions[m.step]||taskReasons[0]):taskReasons[m.reason]):'旧固件或无新鲜遥测；请勿据此判断车辆已停止。');
     set('task-counts',m&&m.held_kind!==null?'入区即触发夹持 · 出区不自动松开':m?'旧版固件：连续入区 '+m.inside+' / 3 · 出区 '+m.outside+' / 3':'等待任务遥测');
     set('held-object',m?(m.held_kind===null?'夹持记录：旧固件未提供':m.held_kind===0?'夹持记录：空爪':'已持有：'+(VisionXY.kinds[m.held_kind]||'未知类别')+' · 保持夹持'):'夹持记录：遥测未更新，当前状态未知',m&&m.held_kind>0?'good':'');
-    renderLower(p,elapsed,live||demo);renderList(d);draw(d);
+    for(let n=1;n<=4;n++)$('remote-key'+n).disabled=n===4?!(live&&port&&!closing):!controlReady()||!!sampling.active;
+    if(!live&&!demo)set('control-status','连接新版主控后，点击场地图直接行驶');
+    if(demo)set('control-status','演示模式：点选和按键不会发送指令');
+    if(live&&p&&!p.control)set('control-status','当前固件不支持网页控制，请烧录新版固件','warn');
+    const goal=p&&p.control&&p.control.target;
+    set('nav-target',goal?'主控目标：X '+goal.x.toFixed(1)+' / Y '+goal.y.toFixed(1)+' cm · '+goal.speed+' cm/s'+(elapsed>=1000?'（历史，状态未知）':p.mission&&p.mission.step===51?' · 已到达':''):'目标位置：—');
+    renderLower(p,elapsed,live||demo);renderList(d);draw(d);drawField();renderSampling();renderSteer();
   }
   if(!('serial' in navigator))notice('此浏览器没有 Web Serial 接口；可以先查看演示，实机请用桌面版 Chrome 或 Edge。');
   new ResizeObserver(()=>render()).observe(canvas.parentElement);setInterval(render,80);render();
