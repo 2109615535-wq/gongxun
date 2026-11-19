@@ -109,7 +109,7 @@ def task_key(task):
 
 
 def results_from_snapshot(snapshot):
-    """只读构造结果。尚未实现可靠库口/入仓几何时明确输出无效，绝不猜测成功。"""
+    """只读构造结果；ROI入仓独立于测距，库口姿态及释放后成功仍须另行核验。"""
     task = snapshot["task"]
     controller = snapshot["controller"]
     cameras = snapshot["cameras"]
@@ -151,7 +151,9 @@ def results_from_snapshot(snapshot):
         rows = [r for r in camera.get("detections", []) if r.get("name") in CLASS_NAMES]
         objects = [dict(target_id=row.get("target_id", 0), kind=obj.kind,
                         distance_mm=obj.distance_mm, distance_valid=int(obj.distance_valid and not blocked),
-                        angle="NA" if obj.angle is None else obj.angle, in_roi=int(obj.in_roi))
+                        angle="NA" if obj.angle is None else obj.angle, in_roi=int(obj.in_roi),
+                        x_mm=obj.x_mm, y_mm=obj.y_mm, zone_kind=obj.zone_kind,
+                        inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside))
                    for row, obj in zip(rows, obs.objects)] if usable else []
         messages.append(dict(common, msg_type="observation", source=obs.source, frame_id=obs.frame_id,
                              age_ms=obs.age_ms, status=status, objects=objects,
@@ -178,9 +180,19 @@ def results_from_snapshot(snapshot):
     messages.append(dict(common, msg_type="dock", zone_kind=zone, dock_valid=0,
                          dock_lateral_mm=None, dock_gap_mm=None, dock_yaw_deg=None,
                          danger_flag=1, danger_reason="dock_geometry_unavailable"))
-    messages.append(dict(common, msg_type="delivery", zone_kind=zone, result_valid=0,
-                         entry_allowed=0, object_inside=0, delivery_confirmed=0,
-                         danger_flag=1, danger_reason="delivery_geometry_unavailable"))
+    entry_rows = [row for camera in cameras.values() for row in camera.get("detections", [])
+                  if fresh and task.get("phase") in DELIVERY_PHASES and
+                  camera.get("age_ms") is not None and 0 <= camera["age_ms"] < 150 and
+                  task.get("locked_target_id", 0) and row.get("target_id") == task["locked_target_id"] and
+                  row.get("name") == MODEL_NAMES.get(task.get("expected_kind")) and
+                  row.get("zone_entry", {}).get("zone_kind") == zone]
+    entry = entry_rows[0].get("zone_entry", {}) if len(entry_rows) == 1 else {}
+    entry_valid = bool(entry.get("result_valid"))
+    inside = bool(entry_valid and entry.get("object_inside"))
+    messages.append(dict(common, msg_type="delivery", zone_kind=zone, result_valid=int(entry_valid),
+                         entry_allowed=0, object_inside=int(inside), delivery_confirmed=0,
+                         danger_flag=1, danger_reason=("release_confirmation_pending" if inside else
+                             "object_outside_zone" if entry_valid else "entry_not_confirmed")))
     phase = task.get("phase")
     relevant = messages[3] if phase in VERIFY_PHASES else messages[4] if phase in DOCK_PHASES else messages[5]
     messages[0]["danger_flag"] = (int(blocked) if phase in {"scan", "search", "align", "approach"}

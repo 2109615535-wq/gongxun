@@ -51,6 +51,7 @@ const qualities = {
   near_estimate: "近处外推估算",
   bbox_ground_estimate: "框底边地面估算",
   display_estimate: "旧标定地面估算",
+  zone_roi_center: "安全区 ROI 中心",
   unavailable: "暂无地面坐标",
 };
 const byId = (id) => document.getElementById(id);
@@ -100,7 +101,8 @@ function renderCamera(role, camera) {
   const fresh = camera.status === "OK" && Number.isFinite(camera.age_ms) &&
     camera.age_ms >= 0 && camera.age_ms < 300;
   const target = getDisplayPosition(camera.selected) ? camera.selected :
-    camera.detections?.find((item) => item.name === "normal_material" && getDisplayPosition(item));
+    camera.detections?.find((item) => item.name === "normal_material" && getDisplayPosition(item)) ||
+    camera.detections?.find((item) => getDisplayPosition(item));
   const point = fresh ? getDisplayPosition(target) : null;
   const estimate = point && (!target.position_valid || camera.age_ms >= 150 ||
     point === target.display_position_mm);
@@ -127,11 +129,17 @@ function renderCamera(role, camera) {
     const chip = document.createElement("span");
     chip.className = `detection ${item.name === "hazard" ? "hazard" : ""}`;
     chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
-    const itemPoint = fresh && item.name === "normal_material" ? getDisplayPosition(item) : null;
-    if (itemPoint) {
-      const itemEstimate = !item.position_valid || camera.age_ms >= 150 ||
-        itemPoint === item.display_position_mm;
-      chip.textContent += ` · X ${mm(itemPoint.x_right, itemEstimate)} · Y ${mm(itemPoint.y_forward, itemEstimate)}`;
+    const position = fresh ? getDisplayPosition(item) : null;
+    if (position) {
+      const itemEstimate = !item.position_valid || camera.age_ms >= 150 || position === item.display_position_mm;
+      chip.textContent += ` · X ${mm(position.x_right, itemEstimate)} · Y ${mm(position.y_forward, itemEstimate)} · 距离 ${mm(position.ground_range, itemEstimate)} · 方位 ${Number.isFinite(position.bearing_deg) ? `${itemEstimate ? "≈ " : ""}${position.bearing_deg.toFixed(2)}°` : "—"}`;
+    }
+    const entry = item.zone_entry;
+    if (entry) {
+      const zone = names[entry.zone_kind] || "安全区";
+      chip.textContent += entry.result_valid
+        ? ` · ${entry.object_inside ? `已进入${zone}` : `未完全进入${zone}`}`
+        : entry.reason === "confirming" ? ` · 入仓确认 ${entry.confirm_count}/3` : " · 入仓待确认";
     }
     detections.append(chip);
   }

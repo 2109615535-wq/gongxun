@@ -1,0 +1,504 @@
+{
+  "date": "2026-11-16",
+  "status": "deployed_verified",
+  "host": "10.163.0.250",
+  "root": "/home/orangepi/rescue_vision_dual",
+  "service": "rescue-vision.service",
+  "backup": "/home/orangepi/rescue_vision_dual/backups/zone_entry_20261116_204503_3980",
+  "service_before_pid": 904,
+  "service_after_pid": 4205,
+  "staging_tests_passed": 57,
+  "mcu_flashed": false,
+  "protocol_active": "vision_simple_v2",
+  "protocol_v3_supported": true,
+  "configuration_preserved": true,
+  "launch_script_preserved": true,
+  "health": {
+    "model": {
+      "status": "READY",
+      "backend": "RKNN"
+    },
+    "link": {
+      "status": "CONNECTED",
+      "protocol": "vision_simple_v2",
+      "invalid_lines": 0,
+      "error": null
+    },
+    "cameras": {
+      "upper": {
+        "status": "OK",
+        "sequence": 1254,
+        "age_ms": 119.4562640000072,
+        "processing_hz": 14.916480957026367,
+        "inference_ms": 62.067424000019855,
+        "sequence_advancing": true,
+        "detections": [
+          {
+            "name": "core_material",
+            "position_mm": null,
+            "display_position_mm": null,
+            "zone_entry": {
+              "zone_kind": null,
+              "result_valid": false,
+              "object_inside": false,
+              "confirm_count": 0,
+              "reason": "object_occluded"
+            }
+          },
+          {
+            "name": "core_material",
+            "position_mm": null,
+            "display_position_mm": null,
+            "zone_entry": {
+              "zone_kind": null,
+              "result_valid": false,
+              "object_inside": false,
+              "confirm_count": 0,
+              "reason": "object_occluded"
+            }
+          }
+        ]
+      },
+      "lower": {
+        "status": "OK",
+        "sequence": 1255,
+        "age_ms": 98.03121200002352,
+        "processing_hz": 14.822912960184656,
+        "inference_ms": 67.07978999997977,
+        "sequence_advancing": true,
+        "detections": [
+          {
+            "name": "gripper",
+            "position_mm": null,
+            "display_position_mm": null,
+            "zone_entry": null
+          }
+        ]
+      }
+    },
+    "web_has_entry": true,
+    "web_preserves_estimate_display": true
+  },
+  "second_snapshot": {
+    "schema": "dual_camera_v1",
+    "server_monotonic": 361.148045088,
+    "coordinate_system": "x_right_y_forward",
+    "unit": "mm",
+    "cameras": {
+      "upper": {
+        "role": "upper",
+        "status": "OK",
+        "captured_monotonic": 361.028588824,
+        "age_ms": 119.4562640000072,
+        "detections": [
+          {
+            "name": "core_material",
+            "confidence": 0.81396484375,
+            "box": [
+              134.0,
+              370.0,
+              273.25,
+              480.0
+            ],
+            "position_mm": null,
+            "position_quality": "unavailable",
+            "angle": null,
+            "inside_gripper_roi": false,
+            "position_valid": false,
+            "intersects_gripper_roi": false,
+            "occluded": true,
+            "roi_clipped": false,
+            "center_offset_normalized": -0.363671875,
+            "target_id": 15,
+            "zone_entry": {
+              "zone_kind": null,
+              "result_valid": false,
+              "object_inside": false,
+              "confirm_count": 0,
+              "reason": "object_occluded"
+            }
+          },
+          {
+            "name": "core_material",
+            "confidence": 0.3876953125,
+            "box": [
+              383.0,
+              368.0,
+              526.5,
+              479.5
+            ],
+            "position_mm": null,
+            "position_quality": "unavailable",
+            "angle": null,
+            "inside_gripper_roi": false,
+            "position_valid": false,
+            "intersects_gripper_roi": false,
+            "occluded": true,
+            "roi_clipped": false,
+            "center_offset_normalized": 0.42109375000000004,
+            "target_id": 619,
+            "zone_entry": {
+              "zone_kind": null,
+              "result_valid": false,
+              "object_inside": false,
+              "confirm_count": 0,
+              "reason": "object_occluded"
+            }
+          }
+        ],
+        "selected": null,
+        "calibration_quality": "local_checked",
+        "motion_valid": false,
+        "hazard_blocked": false,
+        "task_key": [
+          "desktop",
+          "0",
+          null,
+          "debug",
+          "IDLE",
+          null,
+          null,
+          [],
+          null,
+          null,
+          null,
+          null
+        ],
+        "observation_yaw_deg": null,
+        "gripper": {
+          "status": "NOT_APPLICABLE",
+          "match": false,
+          "count": 0
+        },
+        "sequence": 1254,
+        "inference_ms": 62.067424000019855,
+        "processing_hz": 14.916480957026367,
+        "preprocess_ms": 8.39365000001635,
+        "npu_ms": 51.78557400000727,
+        "postprocess_ms": 1.4857099999971979,
+        "mode": "camera",
+        "gripper_revision": 0,
+        "stream_available": true,
+        "info": {
+          "size": [
+            640,
+            480
+          ],
+          "quality": "local_checked",
+          "forward_range_mm": [
+            150.0,
+            800.0
+          ],
+          "source": "/dev/v4l/by-path/platform-xhci-hcd.11.auto-usb-0:1:1.0-video-index0",
+          "kind": "camera",
+          "provenance": {
+            "check_report": "/home/orangepi/rescue_vision_dual/config/dual_calibration/upper_check_report.json",
+            "check_report_sha256": "7ea920c05d787b0bd3049133ed3850688149f8ab0756a5eef6c77856a1f6113e",
+            "mapping": "/home/orangepi/rescue_vision_dual/config/dual_calibration/upper_ground.json",
+            "mapping_sha256": "194f9152dfdb5d908bbe3b507c1e89a6c77e0bbeaf9884929dcccaa8297bf1bc"
+          },
+          "controls": {
+            "backlight_compensation": 0,
+            "auto_exposure": 3,
+            "exposure_dynamic_framerate": 0
+          },
+          "capture_buffers": 2.0,
+          "reported_fps": 30.0,
+          "capture_hz": 29.944923028856927,
+          "preview_hz": 19.919957612815285
+        },
+        "task_current": true
+      },
+      "lower": {
+        "role": "lower",
+        "status": "OK",
+        "captured_monotonic": 361.050013876,
+        "age_ms": 98.03121200002352,
+        "detections": [
+          {
+            "name": "gripper",
+            "confidence": 0.84814453125,
+            "box": [
+              0.0,
+              35.375,
+              640.0,
+              457.625
+            ],
+            "position_mm": null,
+            "position_quality": "unavailable",
+            "angle": null,
+            "inside_gripper_roi": false,
+            "position_valid": false,
+            "intersects_gripper_roi": true,
+            "occluded": true,
+            "roi_clipped": true,
+            "center_offset_normalized": 0.0,
+            "target_id": 2
+          }
+        ],
+        "selected": null,
+        "calibration_quality": "fit_only",
+        "motion_valid": false,
+        "hazard_blocked": false,
+        "task_key": [
+          "desktop",
+          "0",
+          null,
+          "debug",
+          "IDLE",
+          null,
+          null,
+          [],
+          null,
+          null,
+          null,
+          null
+        ],
+        "observation_yaw_deg": null,
+        "gripper": {
+          "status": "WAITING_TASK",
+          "match": false,
+          "count": 0,
+          "observed": null,
+          "roi_count": 0,
+          "roi_kinds": [],
+          "result_valid": false,
+          "danger_flag": 1,
+          "danger_reason": "expected_kind_unknown"
+        },
+        "sequence": 1255,
+        "inference_ms": 67.07978999997977,
+        "processing_hz": 14.822912960184656,
+        "preprocess_ms": 12.761534000048869,
+        "npu_ms": 53.004040999951485,
+        "postprocess_ms": 1.0753470000395282,
+        "mode": "camera",
+        "gripper_revision": 0,
+        "stream_available": true,
+        "info": {
+          "size": [
+            640,
+            480
+          ],
+          "quality": "fit_only",
+          "forward_range_mm": [
+            100.0,
+            500.0
+          ],
+          "source": "/dev/v4l/by-path/platform-xhci-hcd.7.auto-usb-0:1:1.0-video-index0",
+          "kind": "camera",
+          "provenance": {
+            "camera_role": "lower",
+            "independent_check_status": "not_performed",
+            "mapping": "/home/orangepi/rescue_vision_dual/config/dual_calibration/lower_ground.json",
+            "mapping_sha256": "54af978d241b82e563156c5f7fe847a9c59602dca42eb34c1e64d1f9d3aa11fc"
+          },
+          "controls": {
+            "backlight_compensation": 0,
+            "auto_exposure": 3,
+            "exposure_dynamic_framerate": 0
+          },
+          "capture_buffers": 2.0,
+          "reported_fps": 30.0,
+          "capture_hz": 30.17618127654909,
+          "preview_hz": 19.870337941873
+        },
+        "task_current": true
+      }
+    },
+    "controller": {
+      "status": "DISCONNECTED",
+      "state": null,
+      "expected": null,
+      "age_ms": null
+    },
+    "task": {
+      "source": "debug",
+      "expected": null,
+      "session_id": "desktop",
+      "task_id": "0",
+      "state": "IDLE"
+    },
+    "link": {
+      "status": "CONNECTED",
+      "protocol": "vision_simple_v2",
+      "invalid_lines": 0,
+      "error": null
+    },
+    "model": {
+      "backend": "RKNN",
+      "classes": [
+        "normal_material",
+        "core_material",
+        "casualty",
+        "hazard",
+        "gripper",
+        "red_material_zone",
+        "blue_material_zone",
+        "red_casualty_zone",
+        "blue_casualty_zone",
+        "gripper_closed"
+      ],
+      "weights": "/home/orangepi/yolo_deploy/best_rknn_model",
+      "device": "RK3588 NPU",
+      "fast_path": true,
+      "cpu_affinity": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "status": "READY",
+      "workers": 2
+    },
+    "gripper_config": {
+      "roi_raw_xyxy": [
+        158,
+        49,
+        486,
+        452
+      ],
+      "validated": false,
+      "dark_guard": {
+        "enabled": true,
+        "value_max": 55,
+        "min_area_px": 500
+      }
+    },
+    "gripper_revision": 0,
+    "navigation": {
+      "source": null,
+      "selected": null,
+      "motion_valid": false,
+      "hazard_blocked": false,
+      "upper_primary": true
+    },
+    "gripper": {
+      "status": "WAITING_TASK",
+      "match": false,
+      "count": 0,
+      "observed": null,
+      "roi_count": 0,
+      "roi_kinds": [],
+      "result_valid": false,
+      "danger_flag": 1,
+      "danger_reason": "expected_kind_unknown",
+      "controller_match": false
+    },
+    "task_results": [
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "status",
+        "ack_seq": null,
+        "accepted_state_id": null,
+        "accepted_phase": null,
+        "vision_ready": 0,
+        "fault_code": "controller_lost",
+        "danger_flag": 1
+      },
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "observation",
+        "source": "upper",
+        "frame_id": 1254,
+        "age_ms": 120,
+        "status": "fault",
+        "objects": [],
+        "yaw_deg": null,
+        "danger_flag": 1
+      },
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "observation",
+        "source": "lower",
+        "frame_id": 1255,
+        "age_ms": 99,
+        "status": "fault",
+        "objects": [],
+        "yaw_deg": null,
+        "danger_flag": 1
+      },
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "verification",
+        "source": "lower",
+        "frame_id": 1255,
+        "age_ms": 98.03121200002352,
+        "result_valid": 0,
+        "roi_count": 0,
+        "roi_kinds": [],
+        "danger_flag": 1,
+        "danger_reason": "controller_lost"
+      },
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "dock",
+        "zone_kind": null,
+        "dock_valid": 0,
+        "dock_lateral_mm": null,
+        "dock_gap_mm": null,
+        "dock_yaw_deg": null,
+        "danger_flag": 1,
+        "danger_reason": "dock_geometry_unavailable"
+      },
+      {
+        "session_id": null,
+        "task_id": null,
+        "state_id": null,
+        "phase": null,
+        "msg_type": "delivery",
+        "zone_kind": null,
+        "result_valid": 0,
+        "entry_allowed": 0,
+        "object_inside": 0,
+        "delivery_confirmed": 0,
+        "danger_flag": 1,
+        "danger_reason": "entry_not_confirmed"
+      }
+    ]
+  },
+  "production_tests_passed": 57,
+  "installed_hashes_match": true,
+  "gripper_roi_preserved": [
+    158,
+    49,
+    486,
+    452
+  ],
+  "temporary_tun_exclusion_restored": true,
+  "live_entry_confirmation": false,
+  "deployed_manifest": {
+    "rescue_vision/dual.py": "bf7ac02acc1da46f06d39779b9212a294cf28749af073269eea9d64eee3578c8",
+    "rescue_vision/simple_protocol.py": "bad1ac11ae062a42a4a42015fe8627c646008876d4e872ce675f96e3e7a36407",
+    "rescue_vision/dashboard.py": "02347ff4561b09e7b6b192dad7b999ad2df661a59c6a14ce790a538741e59f1e",
+    "rescue_vision/dashboard_state.py": "0faa19e349e8610b7bb127b6b884225fcad72cfe0d7c3e83a4e75fc5b5b10ae0",
+    "rescue_vision/task_protocol.py": "fb44f25a33655da35fc4971fec2fea2b9175713c90b8e047794482998017943c",
+    "rescue_vision/web/app.js": "55b69cde5f9dd84010047a2d4d4ecf5b35f05049bbc9724bcb34e0829731e529",
+    "tests/test_distance_compensation.py": "31c6a1103080ea2c16096e4da200653885ff276caa03d36667ff2d5ef8eba54e",
+    "tests/test_task_protocol.py": "8ddb7f4c785f7bfe54230d85bcb4d2d913194da7ea0d5dc6f0737ceef030353b",
+    "tests/test_zone_coordinates.py": "d17eeb1fd81bc4f07884a182174ee919830b5106a37aaf0775b2c554701a87e1",
+    "tests/test_zone_entry.py": "43c75cc68fec816e9807bd24d455331b06722e6c7d0581617eb6020eff503f6f"
+  },
+  "mcu_firmware": {
+    "path": "E:\\智能救援\\gongxun\\project\\build\\safety_zone\\project.hex",
+    "sha256": "4dbb2767ceeb20db86a64cbde4da0056d4ea10d900e539cb6ff6f2bea177fdb2",
+    "flashed": false,
+    "receiver_tests_passed": true,
+    "full_firmware_regression": "preexisting_steering_pid_expectation_mismatch"
+  }
+}

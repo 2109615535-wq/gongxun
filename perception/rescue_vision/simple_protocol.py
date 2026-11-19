@@ -29,7 +29,7 @@ CLASS_NAMES = {
 }
 WIRE_NAMES = tuple(CLASS_NAMES.values())  # 取出字典右边的全部名称，供合法性检查使用。
 MAX_OBJECTS = 12  # 一路相机的一帧最多携带12个物体。
-MAX_LINE = 512  # 每行最多512字节，行末的换行符另算。
+MAX_LINE = 1024  # RV3每行最多1024字节；RV1/RV2继续限制为512字节。
 MAX_AGE_MS = 300  # 识别结果距离采集时刻达到300毫秒后，按过期处理。
 # 依次表示有目标、空场、过期、故障、目标数量超限。
 STATUSES = ("ok", "empty", "stale", "fault", "overflow")
@@ -48,6 +48,11 @@ class SimpleObject:
     distance_valid: bool = False  # True表示距离满足现有位置验证及新鲜度条件。
     in_roi: bool = False  # True表示位于下视夹爪核验区域，夹持成功需另外判断。
     angle: float | None = None  # 地面方位角（度），右正左负，None表示无法提供。
+    x_mm: int | None = None  # RV3：向右为正，未知为NA。
+    y_mm: int | None = None  # RV3：向前为正，未知为NA。
+    zone_kind: str | None = None  # RV3：本物体入仓核验所对应的安全区。
+    inside_valid: bool = False  # RV3：完整ROI包含关系的判断是否有效。
+    object_inside: bool = False  # RV3：同一物体/安全区连续三帧完全包含。
 
 
 @dataclass(frozen=True)
@@ -94,12 +99,22 @@ def validate(observation):
                 (obj.distance_valid and obj.distance_mm < 0) or
                 (observation.source == "upper" and obj.in_roi)):
             raise ValueError("Invalid simple object")
+        if ((obj.x_mm is None) != (obj.y_mm is None) or
+                (obj.x_mm is not None and not all(_integer(v, -65535, 65535) for v in (obj.x_mm, obj.y_mm))) or
+                type(obj.inside_valid) is not bool or type(obj.object_inside) is not bool or
+                (obj.zone_kind is not None and obj.zone_kind not in WIRE_NAMES[4:]) or
+                (obj.object_inside and not obj.inside_valid) or
+                (obj.inside_valid and obj.zone_kind is None) or
+                (obj.zone_kind is not None and
+                 (obj.kind not in ("green", "black", "orange") or
+                  (obj.kind == "orange") != obj.zone_kind.endswith("_casualty_zone")))):
+            raise ValueError("Invalid RV3 coordinates or zone entry")
 
 
 def encode(observation, *, version=2):
     """把 SimpleObservation 转成一条可交给串口 write() 的字节串。"""
     validate(observation)
-    if type(version) is not int or version not in (1, 2):
+    if type(version) is not int or version not in (1, 2, 3):
         raise ValueError("Unsupported simple protocol version")
     # RV2追加angle；RV1保持原来的4字段布局，供旧接收端显式选择。
     fields = [f"RV{version}", observation.source, str(observation.frame_id), str(observation.age_ms),
@@ -107,13 +122,19 @@ def encode(observation, *, version=2):
     for obj in observation.objects:
         # int(True)得到1，int(False)得到0，便于C语言接收。
         fields.extend((obj.kind, str(obj.distance_mm), str(int(obj.distance_valid)), str(int(obj.in_roi))))
-        if version == 2:
+        if version >= 2:
             fields.append("NA" if obj.angle is None else f"{obj.angle:.2f}")
+        if version == 3:
+            if obj.distance_valid and (obj.x_mm is None or obj.angle is None):
+                raise ValueError("Valid RV3 position requires X/Y and angle")
+            fields.extend(("NA" if obj.x_mm is None else str(obj.x_mm),
+                           "NA" if obj.y_mm is None else str(obj.y_mm),
+                           obj.zone_kind or "NA", str(int(obj.inside_valid)), str(int(obj.object_inside))))
     # join用逗号连接字符串，encode("ascii")将文字转换为实际发送的字节。
     body = ",".join(fields).encode("ascii")
     # CRC用于发现传输中的数据损坏，04X表示补足4位的大写十六进制数。
     packet = body + f"*{crc16(body):04X}".encode("ascii")
-    if len(packet) > MAX_LINE:
+    if len(packet) > (MAX_LINE if version == 3 else 512):
         raise ValueError("Simple observation line too long")
     return packet + b"\n"  # b表示bytes字节串，\n让接收端知道这一行已经结束。
 
@@ -140,6 +161,14 @@ def _angle(text):
     return value
 
 
+def _coordinate(text):
+    if text == "NA":
+        return None
+    if not re.fullmatch(r"-?[0-9]+", text) or not -65535 <= int(text) <= 65535:
+        raise ValueError("Invalid RV3 coordinate")
+    return int(text)
+
+
 def decode(packet):
     """把完整的一行串口数据还原成对象，供电脑检查和协议互通测试使用。"""
     # 切片[:-1]去掉最后一个字节，兼容常见的LF和CRLF两种换行方式。
@@ -157,20 +186,30 @@ def decode(packet):
         fields = body.decode("ascii").split(",")
     except UnicodeDecodeError as exc:
         raise ValueError("Expected ASCII") from exc
-    if len(fields) < 6 or fields[0] not in ("RV1", "RV2"):
+    if len(fields) < 6 or fields[0] not in ("RV1", "RV2", "RV3"):
         raise ValueError("Invalid simple header")
-    item_fields = 5 if fields[0] == "RV2" else 4
+    item_fields = {"RV1": 4, "RV2": 5, "RV3": 10}[fields[0]]
+    if fields[0] != "RV3" and len(packet) > 512:
+        raise ValueError("Legacy simple line too long")
     count = _number(fields[5], 0, MAX_OBJECTS)
     if len(fields) != 6 + item_fields * count:
         raise ValueError("Object count differs from line length")
     # RV2每物体5项；旧RV1每物体4项且angle为None。
     objects = tuple(SimpleObject(fields[i], _number(fields[i+1], -1, 65535),
                                  bool(_number(fields[i+2], 0, 1)), bool(_number(fields[i+3], 0, 1)),
-                                 _angle(fields[i+4]) if item_fields == 5 else None)
+                                 _angle(fields[i+4]) if item_fields >= 5 else None,
+                                 _coordinate(fields[i+5]) if item_fields == 10 else None,
+                                 _coordinate(fields[i+6]) if item_fields == 10 else None,
+                                 (None if fields[i+7] == "NA" else fields[i+7]) if item_fields == 10 else None,
+                                 bool(_number(fields[i+8], 0, 1)) if item_fields == 10 else False,
+                                 bool(_number(fields[i+9], 0, 1)) if item_fields == 10 else False)
                     for i in range(6, len(fields), item_fields))
     result = SimpleObservation(fields[1], _number(fields[2], 0, 0xFFFFFFFF),
                                _number(fields[3], -1, 65535), fields[4], objects)
     validate(result)
+    if item_fields == 10 and any(obj.distance_valid and (obj.x_mm is None or obj.angle is None)
+                                 for obj in objects):
+        raise ValueError("Valid RV3 position requires X/Y and angle")
     return result
 
 
@@ -225,8 +264,15 @@ def observations_from_snapshot(snapshot):
                         math.isfinite(x) and math.isfinite(y) and (x != 0 or y != 0)):
                     angle = round(math.degrees(math.atan2(x, y)), 2)
                 # append在列表末尾加入一个物体，同类多个物体也会分别保留。
+                coordinates = (round(x), round(y)) if (type(x) in (int, float) and
+                    type(y) in (int, float) and math.isfinite(x) and math.isfinite(y) and
+                    abs(x) <= 65535 and abs(y) <= 65535) else (None, None)
+                entry = row.get("zone_entry", {})
+                inside_valid = bool(entry.get("result_valid", False) and age_ms < 150)
                 objects.append(SimpleObject(CLASS_NAMES[name], distance_mm, distance_valid,
-                                            source == "lower" and bool(row.get("inside_gripper_roi", False)), angle))
+                                            source == "lower" and bool(row.get("inside_gripper_roi", False)), angle,
+                                            *coordinates, entry.get("zone_kind"), inside_valid,
+                                            bool(inside_valid and entry.get("object_inside", False))))
             if len(objects) > MAX_OBJECTS:
                 # 数量超限时整帧标记overflow，避免截断列表时遗漏危险物体。
                 status = "overflow"

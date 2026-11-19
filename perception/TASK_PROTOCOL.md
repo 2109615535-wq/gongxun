@@ -53,6 +53,8 @@
 - `distance_mm/distance_valid`：沿用地面径向距离与位置有效条件，无距离为-1；有效距离要求小于150ms。
 - `angle`：地面方位角，单位度，右正左负，无角度为字符串NA。0度是合法正前方角度。
 - `in_roi`：是否满足下视机构ROI覆盖阈值，上视恒为0；不代表核验成功。
+- `x_mm/y_mm`：地面 X 向右、Y 向前，单位 mm；无坐标为 null，位置有效性沿用 `distance_valid`。
+- `zone_kind/inside_valid/object_inside`：当前物体的安全区归属、视觉入仓判断有效位、连续三帧完整 ROI 入区结果。没有区域为 null；伤员只对应伤员区，普通/核心物资只对应物资区。实际区域颜色仍须与主控本方颜色核对。
 
 不发送angle_valid，由主控根据角度非NA、距离有效和累计年龄计算。
 
@@ -70,6 +72,8 @@ danger_reason包含 `multiple_objects/kind_mismatch/hazard/unknown_object/occlud
 
 ### dock：近仓对准
 
+2026-11-16 起，四类安全区的 ROI 中心位置通过普通 `observation.objects` 回传，字段与物块一致：`kind/distance_mm/distance_valid/in_roi/angle`。该坐标用于小车正对安全区时的对准与接近；它不等于下述库口姿态，也不自动使 `dock_valid` 有效。
+
 包含 `zone_kind/dock_valid/dock_lateral_mm/dock_gap_mm/dock_yaw_deg/danger_flag/danger_reason`。zone_kind由本方颜色与物资/伤员类别确定，是任务要求，不是已看见正确区域的证明。
 
 dock_lateral_mm是库口横向误差，dock_gap_mm是到内侧参考边界的前向间隙，dock_yaw_deg是相对库口法线的角度误差，**不能用目标angle或车体yaw替代**。
@@ -78,7 +82,9 @@ dock_lateral_mm是库口横向误差，dock_gap_mm是到内侧参考边界的前
 
 ### delivery：入仓与投放确认
 
-包含 `zone_kind/entry_allowed/object_inside/delivery_confirmed/result_valid/danger_flag/danger_reason`。当前缺少完整物体入区、释放退出后留存的可靠几何与时序核验，因此result_valid与三个放行/成功标志始终为0，danger_flag=1，原因delivery_geometry_unavailable。接口已接入，成功判断算法尚未实现。
+包含 `zone_kind/entry_allowed/object_inside/delivery_confirmed/result_valid/danger_flag/danger_reason`。2026-11-16 起，已按“完整物体 ROI 位于对应安全区 ROI 内，连续三帧”实现视觉入仓判断。只有当前投放阶段、双路实时图像属于当前任务且新鲜、锁定编号能唯一匹配本次物体、物体类别正确、实际区域与本方要求一致时，才将其 `zone_entry` 汇总为本任务的 `result_valid/object_inside`；缺少锁定编号时仅提供逐物体结果，不把画面中的其他同类物体当作本次任务物体。入仓结果有效期为 150 ms，独立于地面测距标定。
+
+本次未实现库口进入条件、释放并退出后留存核验，因此 `entry_allowed=0, delivery_confirmed=0, danger_flag=1`。已确认视觉入仓时原因是 `release_confirmation_pending`，有效的未入区结果为 `object_outside_zone`，其余为 `entry_not_confirmed`。完整投放成功仍须后续核验。
 
 后续需以同任务的完整物体轮廓、正确区域边界、释放与退出后的新鲜连续图像判断，不能由检测到区域推断投放成功。视觉返回delivery_confirmed，由STM32核对任务后决定解除首轮限制和进入状态2，没有额外“进入状态2”命令。
 
@@ -88,7 +94,7 @@ dock_lateral_mm是库口横向误差，dock_gap_mm是到内侧参考边界的前
 
 发送时重新取快照，轮流发送状态、上视、下视和当前阶段结果，并按字节预算限速；115200下12目标长JSON不能保证10Hz。age_ms为发送前软件采集年龄，**不含曝光、相机缓存和串口传输时间**。主控必须累计串口传输与接收后的时间：达到150ms撤销距离/角度有效，达到300ms撤销核验结果，自身通信超时也应禁止继续。
 
-现有配置ROI validated=false，上视为局部检查、下视为拟合标定，因此实际运行会报告未验证，本次不自动改验证标志。库口/入仓确认和跨相机交接仍需实车数据和算法补充。
+现有配置ROI validated=false，上视为局部检查、下视为拟合标定，因此运动/夹爪核验仍会报告未验证，本次不自动改验证标志。视觉 ROI 入仓判断已实现；库口姿态、释放后留存和跨相机交接仍待实车验证与算法补充。
 
 离线回归，在perception目录运行：
 
