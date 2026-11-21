@@ -43,7 +43,7 @@ def apply_uvc_controls(camera, controls):
     return actual
 
 
-def decode_existing_output(outputs, class_count, confidence, nms_iou):
+def decode_existing_output(outputs, class_count, confidence, nms_iou, allowed_classes=None):
     """Decode the inspected [1, 4+classes, 8400] model, preserving class-aware NMS."""
     from .detector import nms
     if len(outputs) != 1:
@@ -56,6 +56,8 @@ def decode_existing_output(outputs, class_count, confidence, nms_iou):
     classes = predictions[:, 4:].argmax(axis=1)
     scores = predictions[:, 4:].max(axis=1)
     selected = (scores > confidence) & (predictions[:, 2] > 0) & (predictions[:, 3] > 0)
+    if allowed_classes is not None:
+        selected &= np.isin(classes, allowed_classes)
     predictions, classes, scores = predictions[selected], classes[selected], scores[selected]
     boxes = np.column_stack((predictions[:, 0] - predictions[:, 2] / 2,
                              predictions[:, 1] - predictions[:, 3] / 2,
@@ -118,6 +120,12 @@ class ExistingUltralyticsDetector:
                 or not all(isinstance(n, str) for n in self.names)
                 or not set(TARGET_TYPES) <= set(self.names)):
             raise ValueError("Unsupported existing model metadata")
+        excluded = config.get("excluded_detection_classes", [])
+        if not isinstance(excluded, list) or any(name not in self.names for name in excluded):
+            raise ValueError("Excluded classes must be listed by their model label names")
+        self.allowed_classes = None
+        if excluded:
+            self.allowed_classes = [i for i, name in enumerate(self.names) if name not in excluded]
         module = sys.modules.get("rknn_compat")
         if module is not None:
             if Path(module.__file__).resolve() != helper:
@@ -175,7 +183,8 @@ class ExistingUltralyticsDetector:
             if outputs is None:
                 raise RuntimeError("Existing RKNN inference failed")
             boxes, classes, scores = decode_existing_output(outputs, len(self.names),
-                                                            self.config["confidence"], self.config["nms_iou"])
+                                                            self.config["confidence"], self.config["nms_iou"],
+                                                            self.allowed_classes)
             boxes = restore_boxes(boxes, transform, image.shape)
             valid = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
             result = detections_from_arrays(boxes[valid], scores[valid], classes[valid], self.names)
@@ -186,7 +195,7 @@ class ExistingUltralyticsDetector:
             return result
         result = self.model.predict(image, imgsz=640, rect=False, device="cpu",
                                     conf=self.config["confidence"], iou=self.config["nms_iou"],
-                                    verbose=False)[0]
+                                    classes=self.allowed_classes, verbose=False)[0]
         names = [result.names[i] for i in range(len(result.names))]
         if names != self.names:
             raise ValueError("Runtime class map differs from inspected metadata")

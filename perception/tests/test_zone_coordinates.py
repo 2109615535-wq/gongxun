@@ -8,6 +8,7 @@ import unittest
 import cv2
 import numpy as np
 
+from rescue_vision.dashboard import annotate_frame
 from rescue_vision.dual import CameraPerception
 from rescue_vision.geometry import GroundCalibration
 from rescue_vision.simple_protocol import decode, encode, observations_from_snapshot
@@ -59,6 +60,7 @@ class ZoneCoordinatesTests(unittest.TestCase):
         for role in ("upper", "lower"):
             for row in self.process(role)["detections"]:
                 with self.subTest(role=role, zone=row["name"]):
+                    self.assertEqual(row["zone_center_px"], (392., 404.))
                     self.assertEqual(row["position_quality"], "zone_roi_center")
                     self.assertTrue(row["position_valid"])
                     self.assertAlmostEqual(row["position_mm"]["x_right"], 120.)
@@ -67,6 +69,22 @@ class ZoneCoordinatesTests(unittest.TestCase):
                     self.assertAlmostEqual(row["position_mm"]["bearing_deg"], 36.86989764584402)
                     self.assertAlmostEqual(row["distance_compensation"]["raw_distance_mm"], 240.)
                     self.assertTrue(row["distance_compensation"]["applied"])
+
+    def test_preview_marks_complete_zones_only(self):
+        image = np.zeros((480, 640, 3), np.uint8)
+        for role in ("upper", "lower"):
+            complete = self.process(role, names=ZONE_NAMES[:1], output_max=180.)
+            self.assertIsNone(complete["detections"][0]["position_mm"])
+            marked = annotate_frame(image, complete, None)
+            self.assertEqual(tuple(marked[404, 392]), (0, 215, 255))
+
+            clipped = self.process(role, names=ZONE_NAMES[:1], box=(0., 384., 412., 424.))
+            marked = annotate_frame(image, clipped, None)
+            self.assertEqual(tuple(marked[404, 206]), (0, 0, 0))
+
+            material = self.process(role, names=("normal_material",))
+            marked = annotate_frame(image, material, None)
+            self.assertEqual(tuple(marked[404, 392]), (0, 0, 0))
 
     def test_roi_center_is_undistorted_before_ground_projection(self):
         distortion = np.array([.08, -.03, .001, -.002, .005])
@@ -111,6 +129,16 @@ class ZoneCoordinatesTests(unittest.TestCase):
                 self.assertEqual(obj.distance_mm, 200)
                 self.assertFalse(obj.distance_valid)
                 self.assertEqual(obj.angle, 36.87)
+
+    def test_orange_blue_and_black_use_box_contact_with_either_calibration_state(self):
+        for name, kind in (("casualty", "orange"), ("hazard", "blue"), ("core_material", "black")):
+            for valid in (False, True):
+                for observation in observations_from_snapshot(self.snapshot(names=(name,), valid=valid)):
+                    with self.subTest(kind=kind, calibration_valid=valid, camera=observation.source):
+                        obj = decode(encode(observation, version=3)).objects[0]
+                        self.assertEqual((obj.kind, obj.distance_valid), (kind, True))
+                        # 框底边中点 (392,423) 投影为 (144,154)，随后执行径向补偿。
+                        self.assertEqual((obj.x_mm, obj.y_mm), (122, 131))
 
     def test_clipped_roi_or_projection_outside_output_range_has_no_coordinate(self):
         for changes in (dict(box=(0., 384., 412., 424.)), dict(output_max=180.)):

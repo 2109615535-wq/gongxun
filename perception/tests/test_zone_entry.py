@@ -128,12 +128,13 @@ class ZoneEntryTests(unittest.TestCase):
         snapshot = dict(cameras=dict(upper=result, lower=dict(status="NO_TARGET")))
         observation = observations_from_snapshot(snapshot)[0]
         obj = decode(encode(observation, version=3)).objects[0]
-        self.assertFalse(obj.distance_valid)
+        self.assertTrue(obj.distance_valid)
         self.assertEqual(obj.zone_kind, "red_material_zone")
         self.assertTrue(obj.inside_valid)
         self.assertTrue(obj.object_inside)
         result["age_ms"] = 150
         obj = observations_from_snapshot(snapshot)[0].objects[0]
+        self.assertFalse(obj.distance_valid)
         self.assertFalse(obj.inside_valid)
         self.assertFalse(obj.object_inside)
 
@@ -158,6 +159,44 @@ class ZoneEntryTests(unittest.TestCase):
         self.assertEqual(delivery()["object_inside"], 0)
         task.update(team_color="red", locked_target_id=0)
         self.assertEqual(delivery()["object_inside"], 0)
+
+    def test_delivery_check_reconfirms_retained_object_after_release(self):
+        self.cfg["gripper"] = dict(roi_raw_xyxy=[20, 20, 150, 150], validated=True)
+        upper, lower = self.session(), self.session("lower")
+        self.task.update(source="controller", contract="rescue_json_v2", phase="release",
+                         state_id=1, team_color="red", expected="normal_material",
+                         expected_kind="green", mechanism_state="open")
+        self.task["locked_target_id"] = self.frame(upper)["detections"][0]["target_id"]
+
+        def capture(*, lower_age=.01, lower_extra=()):
+            return dict(upper=dict(self.frame(upper), task_current=True),
+                        lower=dict(self.frame(lower, age=lower_age, extra=lower_extra), task_current=True))
+
+        def delivery(cameras):
+            snapshot = dict(cameras=cameras, task=self.task, controller=self.task, model=dict(status="READY"))
+            return next(message for message in results_from_snapshot(snapshot) if message["msg_type"] == "delivery")
+
+        for _ in range(3):
+            released = capture()
+        self.assertEqual(delivery(released)["object_inside"], 1)
+        self.assertEqual(delivery(released)["delivery_confirmed"], 0)
+
+        self.task["phase"] = "delivery_check"
+        for _ in range(2):
+            self.assertEqual(delivery(capture())["delivery_confirmed"], 0)
+        checked = capture()
+        confirmed = delivery(checked)
+        self.assertEqual((confirmed["delivery_confirmed"], confirmed["danger_flag"]), (1, 0))
+        checked["lower"]["age_ms"] = 150
+        self.assertEqual(delivery(checked)["delivery_confirmed"], 0)
+        occupied = capture(lower_extra=(Detection("core_material", .9, (25., 25., 75., 75.)),))
+        self.assertEqual(delivery(occupied)["danger_reason"], "gripper_empty_not_confirmed")
+        self.assertEqual(delivery(capture(lower_age=.151))["delivery_confirmed"], 0)
+
+        self.task["mechanism_state"] = "closed"
+        for _ in range(3):
+            closed = capture()
+        self.assertEqual(delivery(closed)["danger_reason"], "gripper_not_open")
 
 
 class RV3ProtocolTests(unittest.TestCase):

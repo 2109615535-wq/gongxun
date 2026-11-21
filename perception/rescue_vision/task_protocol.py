@@ -5,6 +5,7 @@ import re
 
 from .protocol import crc16
 from .simple_protocol import CLASS_NAMES, observations_from_snapshot
+from .types import TARGET_TYPES
 
 
 MAX_LINE = 4096
@@ -109,7 +110,7 @@ def task_key(task):
 
 
 def results_from_snapshot(snapshot):
-    """只读构造结果；ROI入仓独立于测距，库口姿态及释放后成功仍须另行核验。"""
+    """只读构造结果；入区和松爪后留存通过图像核验。"""
     task = snapshot["task"]
     controller = snapshot["controller"]
     cameras = snapshot["cameras"]
@@ -150,7 +151,8 @@ def results_from_snapshot(snapshot):
         status = obs.status if usable else "fault"
         rows = [r for r in camera.get("detections", []) if r.get("name") in CLASS_NAMES]
         objects = [dict(target_id=row.get("target_id", 0), kind=obj.kind,
-                        distance_mm=obj.distance_mm, distance_valid=int(obj.distance_valid and not blocked),
+                        distance_mm=obj.distance_mm,
+                        distance_valid=int(obj.distance_valid and (not blocked or row["name"] in TARGET_TYPES)),
                         angle="NA" if obj.angle is None else obj.angle, in_roi=int(obj.in_roi),
                         x_mm=obj.x_mm, y_mm=obj.y_mm, zone_kind=obj.zone_kind,
                         inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside))
@@ -189,11 +191,24 @@ def results_from_snapshot(snapshot):
     entry = entry_rows[0].get("zone_entry", {}) if len(entry_rows) == 1 else {}
     entry_valid = bool(entry.get("result_valid"))
     inside = bool(entry_valid and entry.get("object_inside"))
-    messages.append(dict(common, msg_type="delivery", zone_kind=zone, result_valid=int(entry_valid),
-                         entry_allowed=0, object_inside=int(inside), delivery_confirmed=0,
-                         danger_flag=1, danger_reason=("release_confirmation_pending" if inside else
-                             "object_outside_zone" if entry_valid else "entry_not_confirmed")))
     phase = task.get("phase")
+    confirmed = False
+    delivery_reason = ("release_confirmation_pending" if inside else
+                       "object_outside_zone" if entry_valid else "entry_not_confirmed")
+    if inside and phase == "delivery_check":
+        if task.get("mechanism_state") != "open":
+            delivery_reason = "gripper_not_open"
+        elif fault not in ("none", "calibration_unverified") or any(c.get("hazard_blocked") for c in cameras.values()):
+            delivery_reason = "delivery_observation_blocked"
+        elif not (0 <= lower["age_ms"] < 150 and grip.get("result_valid") and
+                  grip.get("status") == "EMPTY" and grip.get("roi_count") == 0):
+            delivery_reason = "gripper_empty_not_confirmed"
+        else:
+            confirmed = True
+            delivery_reason = "none"
+    messages.append(dict(common, msg_type="delivery", zone_kind=zone, result_valid=int(entry_valid),
+                         entry_allowed=0, object_inside=int(inside), delivery_confirmed=int(confirmed),
+                         danger_flag=int(not confirmed), danger_reason=delivery_reason))
     relevant = messages[3] if phase in VERIFY_PHASES else messages[4] if phase in DOCK_PHASES else messages[5]
     messages[0]["danger_flag"] = (int(blocked) if phase in {"scan", "search", "align", "approach"}
                                   else relevant["danger_flag"])

@@ -217,7 +217,16 @@ class DashboardState:
                                 for camera in cameras.values()) and live_sources
             motion = bool(source == "upper" and upper["motion_valid"] and cameras_ready
                           and control_fresh and not blocked and controller["status"] == "CONNECTED")
-            grip = deepcopy(lower["gripper"])
+            camera_grip = lower["gripper"]
+            visual_grip = camera_grip.pop("visual", camera_grip)
+            lower_age = lower.get("age_ms")
+            if lower["status"] != "OK":
+                visual_grip = {"status": lower["status"], "match": False, "result_valid": False}
+            elif lower.get("mode") == "video":
+                visual_grip = {"status": "VIDEO_REPLAY", "match": False, "result_valid": False}
+            elif lower_age is None or not 0 <= lower_age < self.config["control_max_age_ms"]:
+                visual_grip = {"status": "STALE", "match": False, "result_valid": False}
+            grip = dict(camera_grip, visual=dict(visual_grip, confirm_frames=self.config["confirm_frames"]))
             grip_fresh = (lower.get("age_ms") is not None and
                           0 <= lower["age_ms"] <= self.config["max_frame_age_ms"] and live_sources)
             grip["controller_match"] = bool(grip["match"] and controller["status"] == "CONNECTED"

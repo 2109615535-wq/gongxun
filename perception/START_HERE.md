@@ -1,6 +1,6 @@
 # 交付目录与首次运行
 
-本版保留完整Python模块、双摄配置、网页、启动脚本、模型和简易观测协议C参考接收器。新增双向任务协议、连续目标编号、阶段隔离和ROI核验结果；未部署香橙派、修改真实主控或提交GitHub。
+本分支包含双视网页、相机配置、标定、录制数据集与接收工具，以及 weitiao2 的 PT 和 RKNN 权重。UART6 / OLED 接入和最新运行方式见 [README.md](README.md)。
 
 当前离线回归源码位于tests目录，覆盖新版CRC、任务约束、序号/会话、阶段切换、目标关联和核验禁止放行。运行 `python -m unittest discover -s tests -v` 可复查，主机验证不代替串口和实车验收。
 
@@ -64,4 +64,4 @@ sh tools/run_dual_orangepi.sh
 
 当前入口为双摄`dashboard`；`config/vision.json`等其他配置保留为原流程示例，若运行旧单摄/标定命令，还需准备其各自输入数据。保留三个双摄启动脚本与当前回归测试，不附实验录像、照片、缓存、历史压缩包或旧二进制C接收器。
 
-双向任务通信见 [TASK_PROTOCOL.md](TASK_PROTOCOL.md)，启动选项见 [README.md](README.md)。现有vision_simple.c/.h只支持RV1/RV2；启用rescue_json_v2前主控需要适配。库口姿态、入仓和投放成功接口当前保持无效，不能用于放行。
+双向任务通信见 [TASK_PROTOCOL.md](TASK_PROTOCOL.md)，启动选项见 [README.md](README.md)。启用 `rescue_json_v2` 前主控需要适配。视觉可报告入区结果，并在松爪、退出后的 `delivery_check` 阶段核验留存；库口姿态仍待验证。

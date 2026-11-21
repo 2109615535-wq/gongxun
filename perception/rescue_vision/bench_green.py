@@ -21,7 +21,7 @@ from .types import Detection
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = ROOT / "artifacts/ground_experiment/20261030_180403_198681_check_report.json"
 DEFAULT_WEIGHTS = ROOT / "models/best.pt"
-MODEL_SHA256 = "ab67fffaad0bbdac0f915941a328a310d55bc5a45fd5bc60f4815bbd33146d89"
+MODEL_SHA256 = "9076a13ebb726a8f83fdc3f0651ee2531244b866b6d7c463cfc7032d7a0f4d4a"
 LOWER, UPPER = [35, 65, 40], [90, 255, 255]
 
 
@@ -249,7 +249,8 @@ class GreenSession:
 
 
 class YoloDetector:
-    def __init__(self, weights, confidence, device, threads, config_dir, expected_sha):
+    def __init__(self, weights, confidence, device, threads, config_dir, expected_sha,
+                 excluded_classes=None):
         weights = Path(weights)
         if not weights.is_file():
             raise ValueError(f"模型文件不存在：{weights}")
@@ -266,15 +267,24 @@ class YoloDetector:
         torch.set_num_threads(threads)
         self.model = YOLO(str(weights))
         names = self.model.names
-        if "normal_material" not in (names.values() if isinstance(names, dict) else names):
+        named_classes = names if isinstance(names, dict) else dict(enumerate(names))
+        if "normal_material" not in named_classes.values():
             raise ValueError("模型类别表中没有normal_material，不能套用COCO类别编号。")
+        if excluded_classes is not None and (
+                not isinstance(excluded_classes, list) or
+                any(name not in named_classes.values() for name in excluded_classes)):
+            raise ValueError("排除类别须使用模型类别表中的名称。")
+        self.allowed_classes = None
+        if excluded_classes:
+            self.allowed_classes = [i for i, name in named_classes.items() if name not in excluded_classes]
         self.confidence, self.device = confidence, device
         self.metadata = {"backend": "YOLO_PT", "weights": str(weights.resolve()),
                          "weights_sha256": sha256(weights), "classes": names, "device": device}
 
     def __call__(self, image):
         result = self.model.predict(source=image, imgsz=640, conf=self.confidence,
-                                    iou=.45, device=self.device, verbose=False, save=False)[0]
+                                    iou=.45, device=self.device, classes=self.allowed_classes,
+                                    verbose=False, save=False)[0]
         return [Detection(result.names[int(box.cls.item())], float(box.conf.item()),
                           tuple(float(x) for x in box.xyxy.cpu().numpy()[0]))
                 for box in result.boxes]

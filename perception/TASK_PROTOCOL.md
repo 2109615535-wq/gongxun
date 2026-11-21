@@ -50,7 +50,7 @@
 
 - `target_id`：关联编号。
 - `kind`：green、black、orange、blue及四类红蓝物资/伤员区，模型内部类别不改。
-- `distance_mm/distance_valid`：沿用地面径向距离与位置有效条件，无距离为-1；有效距离要求小于150ms。
+- `distance_mm/distance_valid`：地面径向距离，无距离为 -1。四类物块的坐标和方位可用且小于 150 ms 时，估算位置也回传有效位 1。任务放行另看 `vision_ready`、`danger_flag` 和阶段核验结果。
 - `angle`：地面方位角，单位度，右正左负，无角度为字符串NA。0度是合法正前方角度。
 - `in_roi`：是否满足下视机构ROI覆盖阈值，上视恒为0；不代表核验成功。
 - `x_mm/y_mm`：地面 X 向右、Y 向前，单位 mm；无坐标为 null，位置有效性沿用 `distance_valid`。
@@ -84,9 +84,9 @@ dock_lateral_mm是库口横向误差，dock_gap_mm是到内侧参考边界的前
 
 包含 `zone_kind/entry_allowed/object_inside/delivery_confirmed/result_valid/danger_flag/danger_reason`。2026-11-16 起，已按“完整物体 ROI 位于对应安全区 ROI 内，连续三帧”实现视觉入仓判断。只有当前投放阶段、双路实时图像属于当前任务且新鲜、锁定编号能唯一匹配本次物体、物体类别正确、实际区域与本方要求一致时，才将其 `zone_entry` 汇总为本任务的 `result_valid/object_inside`；缺少锁定编号时仅提供逐物体结果，不把画面中的其他同类物体当作本次任务物体。入仓结果有效期为 150 ms，独立于地面测距标定。
 
-本次未实现库口进入条件、释放并退出后留存核验，因此 `entry_allowed=0, delivery_confirmed=0, danger_flag=1`。已确认视觉入仓时原因是 `release_confirmation_pending`，有效的未入区结果为 `object_outside_zone`，其余为 `entry_not_confirmed`。完整投放成功仍须后续核验。
+主控确认夹爪已张开且小车已退开后发送 `phase=delivery_check` 和 `mechanism_state=open`，保留本次任务与目标锁号。视觉使用该阶段采集的新帧。锁定目标在正确区域中连续三帧完整入区、已验证的下视夹爪 ROI 连续为空、两路画面正常且相关结果新鲜时，回传 `delivery_confirmed=1`。目标丢失、遮挡、过期或夹爪内有物体时撤销确认。库口进入条件尚未校验，`entry_allowed=0`。
 
-后续需以同任务的完整物体轮廓、正确区域边界、释放与退出后的新鲜连续图像判断，不能由检测到区域推断投放成功。视觉返回delivery_confirmed，由STM32核对任务后决定解除首轮限制和进入状态2，没有额外“进入状态2”命令。
+RV3 为单向观测。采用 RV3 时，主控按自己的松爪和退出阶段读取新帧，并使用 `zone_kind/inside_valid/object_inside` 核对留存。主控根据本次任务的确认结果决定何时进入下一段。
 
 ## 时效与当前限制
 
@@ -94,7 +94,7 @@ dock_lateral_mm是库口横向误差，dock_gap_mm是到内侧参考边界的前
 
 发送时重新取快照，轮流发送状态、上视、下视和当前阶段结果，并按字节预算限速；115200下12目标长JSON不能保证10Hz。age_ms为发送前软件采集年龄，**不含曝光、相机缓存和串口传输时间**。主控必须累计串口传输与接收后的时间：达到150ms撤销距离/角度有效，达到300ms撤销核验结果，自身通信超时也应禁止继续。
 
-现有配置ROI validated=false，上视为局部检查、下视为拟合标定，因此运动/夹爪核验仍会报告未验证，本次不自动改验证标志。视觉 ROI 入仓判断已实现；库口姿态、释放后留存和跨相机交接仍待实车验证与算法补充。
+仓库配置的夹爪 ROI 尚待实车验证，上视为局部检查、下视为拟合标定。库口姿态和跨相机交接仍待实车验证与算法补充。
 
 离线回归，在perception目录运行：
 
