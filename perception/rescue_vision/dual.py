@@ -144,6 +144,12 @@ def roi_coverage(box, roi):
     return width * height / ((x2 - x1) * (y2 - y1))
 
 
+def roi_contains(box, roi):
+    x1, y1, x2, y2 = box
+    left, top, right, bottom = roi
+    return left <= x1 and top <= y1 and x2 <= right and y2 <= bottom
+
+
 def unclassified_dark_regions(image, rows, roi, guard):
     """Find interior dark regions left unexplained by recognized material boxes.
 
@@ -286,7 +292,7 @@ class CameraPerception:
                 for other in detections)
             row = {"name": d.name, "confidence": d.confidence, "box": list(d.box),
                    "position_mm": None, "position_quality": "unavailable", "angle": None,
-                   "inside_gripper_roi": inside_grip, "position_valid": False,
+                   "inside_gripper_roi": inside_grip, "in_safety_zone": False, "position_valid": False,
                    "intersects_gripper_roi": intersects, "occluded": occluded,
                    "roi_clipped": bool(intersects and roi_coverage(d.box, roi) < 1 - 1e-6),
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
@@ -349,7 +355,7 @@ class CameraPerception:
         candidates = [row for row in result["detections"] if row["name"] in candidate_names
                       and (allowed is None or row["name"] in {allowed_names[k] for k in allowed})
                       and (not locked or row["target_id"] == locked)
-                      and not row["inside_gripper_roi"]]
+                      and not row["inside_gripper_roi"] and not row["in_safety_zone"]]
         if candidates:
             if self.selection.box is None:
                 selected = min(candidates, key=lambda r: abs((r["box"][0] + r["box"][2]) / 2 - width / 2))
@@ -392,9 +398,12 @@ class CameraPerception:
     def check_zone_entry(self, rows, *, fresh):
         """完整物体 ROI 位于对应安全区 ROI 内，连续三帧才报告视觉入仓。"""
         previous, self.entry_counts = self.entry_counts, {}
-        zones = [row for row in rows if row["name"] in ZONES and
-                 not touches_border(row["box"], self.calibration.size)]
+        zones = [row for row in rows if row["name"] in ZONES]
+        delivery_zones = [zone for zone in zones if not touches_border(zone["box"], self.calibration.size)]
         for row in rows:
+            if row["name"] not in TARGET_TYPES:
+                continue
+            row["in_safety_zone"] = any(roi_contains(row["box"], zone["box"]) for zone in zones)
             if row["name"] not in MATERIALS:
                 continue
             entry = row["zone_entry"] = dict(zone_kind=None, result_valid=False, object_inside=False,
@@ -403,10 +412,8 @@ class CameraPerception:
                 entry["reason"] = "stale" if not fresh else "object_occluded"
                 continue
             suffix = "_casualty_zone" if row["name"] == "casualty" else "_material_zone"
-            matching = [zone for zone in zones if zone["name"].endswith(suffix)]
-            x1, y1, x2, y2 = row["box"]
-            contained = [zone for zone in matching if zone["box"][0] <= x1 and
-                         zone["box"][1] <= y1 and x2 <= zone["box"][2] and y2 <= zone["box"][3]]
+            matching = [zone for zone in delivery_zones if zone["name"].endswith(suffix)]
+            contained = [zone for zone in matching if roi_contains(row["box"], zone["box"])]
             if len(contained) > 1:
                 entry["reason"] = "zone_ambiguous"
             elif len(contained) == 1:

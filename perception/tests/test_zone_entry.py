@@ -11,6 +11,7 @@ from rescue_vision.dashboard import ControllerLink
 from rescue_vision.dashboard_state import DashboardState
 from rescue_vision.dual import CameraPerception
 from rescue_vision.geometry import GroundCalibration
+from rescue_vision.protocol import crc16
 from rescue_vision.simple_protocol import SimpleObject, SimpleObservation, decode, encode, observations_from_snapshot
 from rescue_vision.task_protocol import results_from_snapshot
 from rescue_vision.types import Detection
@@ -43,6 +44,38 @@ class ZoneEntryTests(unittest.TestCase):
         result = session.process(self.image, detections, self.time, self.time + age, self.task)
         result.update(mode="camera", sequence=round(self.time * 100), age_ms=round(age * 1000))
         return result
+
+    def test_safety_zone_flag_uses_the_current_frame_on_each_camera(self):
+        for role in ("upper", "lower"):
+            for name in ("normal_material", "core_material", "casualty", "hazard"):
+                for zone in ("red_material_zone", "blue_material_zone", "red_casualty_zone", "blue_casualty_zone"):
+                    with self.subTest(role=role, name=name, zone=zone):
+                        result = self.frame(self.session(role), name=name, zone=zone)
+                        block, zone_row = result["detections"]
+                        self.assertTrue(block["in_safety_zone"])
+                        self.assertFalse(zone_row["in_safety_zone"])
+                        self.assertFalse(block.get("zone_entry", {}).get("object_inside", False))
+
+    def test_safety_zone_requires_full_containment_and_recomputes_on_zone_loss(self):
+        session = self.session()
+        result = self.frame(session, box=(200., 250., 260., 300.))
+        self.assertTrue(result["detections"][0]["in_safety_zone"])  # A shared edge counts.
+        result = self.frame(session, zone=None, box=(200., 250., 260., 300.))
+        self.assertFalse(result["detections"][0]["in_safety_zone"])
+        result = self.frame(session, box=(199., 250., 260., 300.))
+        self.assertFalse(result["detections"][0]["in_safety_zone"])
+        result = self.frame(session, zone_box=(0., 200., 400., 400.))
+        self.assertTrue(result["detections"][0]["in_safety_zone"])
+
+    def test_safety_zone_blocks_are_excluded_from_selection_only(self):
+        self.task.update(expected="normal_material", phase="search")
+        session = self.session()
+        result = self.frame(session)
+        self.assertIsNone(result["selected"])
+        result = self.frame(session, extra=(Detection("normal_material", .9, (435., 250., 465., 300.)),))
+        self.assertEqual(len(result["detections"]), 3)
+        self.assertEqual(result["selected"]["box"], [435., 250., 465., 300.])
+        self.assertFalse(result["selected"]["in_safety_zone"])
 
     def test_three_frames_for_material_and_casualty_zones_on_both_cameras(self):
         for role in ("upper", "lower"):
@@ -152,6 +185,9 @@ class ZoneEntryTests(unittest.TestCase):
         def delivery():
             return next(message for message in results_from_snapshot(snapshot) if message["msg_type"] == "delivery")
 
+        observation = next(message for message in results_from_snapshot(snapshot)
+                           if message["msg_type"] == "observation" and message["source"] == "upper")
+        self.assertEqual([obj["in_safety_zone"] for obj in observation["objects"]], [1, 0])
         message = delivery()
         self.assertEqual((message["result_valid"], message["object_inside"]), (1, 1))
         self.assertEqual((message["entry_allowed"], message["delivery_confirmed"]), (0, 0))
@@ -199,7 +235,7 @@ class ZoneEntryTests(unittest.TestCase):
         self.assertEqual(delivery(closed)["danger_reason"], "gripper_not_open")
 
 
-class RV3ProtocolTests(unittest.TestCase):
+class SimpleProtocolTests(unittest.TestCase):
     def setUp(self):
         self.obj = SimpleObject("green", 500, True, False, -36.87, -300, 400,
                                 "blue_material_zone", True, True)
@@ -229,6 +265,18 @@ class RV3ProtocolTests(unittest.TestCase):
         self.assertLessEqual(len(packet) - 1, 1024)
         self.assertEqual(decode(packet), observation)
 
+    def test_rv4_appends_one_flag_and_rejects_invalid_flags(self):
+        block = replace(self.obj, in_safety_zone=True)
+        zone = SimpleObject("red_material_zone")
+        observation = replace(self.observation, objects=(block, zone))
+        packet = encode(observation, version=4)
+        self.assertEqual(decode(packet), observation)
+        self.assertFalse(decode(encode(observation, version=3)).objects[0].in_safety_zone)
+        body = packet.split(b"*")[0]
+        for invalid in (body[:-1], body[:-1] + b"2", body[:-1] + b"1"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                decode(invalid + f"*{crc16(invalid):04X}".encode("ascii"))
+
     def test_controller_link_writes_real_rv3_packets(self):
         class State:
             def snapshot(inner):
@@ -252,6 +300,45 @@ class RV3ProtocolTests(unittest.TestCase):
         self.assertEqual(len(packets), 2)
         self.assertTrue(packets[0].startswith(b"RV3,"))
         self.assertEqual(decode(packets[0]).objects[0], self.obj)
+
+    def test_live_sender_reports_rv4_flag_and_masks_only_legacy_pickup(self):
+        position = dict(x_right=-300., y_forward=400., ground_range=500.)
+        protected = dict(name="normal_material", position_mm=position, position_valid=True, in_safety_zone=True,
+                         inside_gripper_roi=True, zone_entry=dict(zone_kind="blue_material_zone",
+                                                                 result_valid=True, object_inside=True))
+        outside = dict(name="normal_material", position_mm=position, position_valid=True, inside_gripper_roi=True)
+        hazard = dict(name="hazard", position_mm=position, position_valid=True, in_safety_zone=True)
+        rows = [protected, outside, hazard]
+
+        class State:
+            def snapshot(inner):
+                return dict(cameras={role: dict(status="OK", sequence=1, age_ms=10, detections=rows)
+                                     for role in ("upper", "lower")})
+
+        for version in (1, 2, 3, 4):
+            with self.subTest(version=version):
+                link = ControllerLink(State(), "unused", f"vision_simple_v{version}")
+                packets = []
+
+                class Port:
+                    def write(inner, data):
+                        packets.append(data)
+                        if len(packets) == 2:
+                            link.stop.set()
+                        return len(data)
+
+                link.send_simple(Port())
+                self.assertEqual(len(packets), 2)
+                self.assertTrue(all(packet.startswith(f"RV{version},".encode("ascii")) for packet in packets))
+                upper, lower = map(decode, packets)
+                block, other, danger = lower.objects
+                self.assertEqual((block.in_safety_zone, block.in_roi), (version == 4, version == 4))
+                self.assertEqual(other.in_roi, version == 4)
+                self.assertEqual(upper.objects[0].distance_mm, 500 if version == 4 else -1)
+                self.assertEqual(upper.objects[1].distance_mm, 500)
+                self.assertEqual(danger.distance_mm, 500)
+                self.assertEqual(block.object_inside, version >= 3)
+                self.assertEqual(block.zone_kind, "blue_material_zone" if version >= 3 else None)
 
     def test_lower_waiting_for_upper_serial_write_is_counted_in_age(self):
         row = dict(name="normal_material", position_mm=dict(x_right=-300., y_forward=400., ground_range=500.),

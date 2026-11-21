@@ -222,6 +222,7 @@ void task_observe_lower(void)
 {
     const VisionObservation *o = &vision.lower;
     unsigned i, green = 0, other = 0;
+    uint8_t pickup = step == 10 || step == 30;
     if (step != 10 && step != 30 && step != 40 && step != 99) return;
     if (!observation_fresh(o)) {
         lower_fault = TASK_LOWER_WAIT;
@@ -234,6 +235,11 @@ void task_observe_lower(void)
         const VisionObject *v = &o->objects[i];
         if (v->kind == VISION_BLUE) lower_fault = TASK_HAZARD;
         if (!v->in_roi) continue;
+        if (pickup && v->in_safety_zone) {
+            pending_kind = VISION_NONE;
+            ++other;
+            continue;
+        }
         if (v->kind == VISION_GREEN) ++green;
         else ++other;
     }
@@ -241,7 +247,7 @@ void task_observe_lower(void)
     if (lower_fault) { task_info.inside_frames = task_info.outside_frames = 0; return; }
     if (green == 1) {
         /* Latch the first valid ROI event, even if a later queued frame loses it. */
-        if ((step == 10 || step == 30) && pending_kind == VISION_NONE)
+        if (pickup && pending_kind == VISION_NONE)
             pending_kind = VISION_GREEN;
         task_info.outside_frames = 0;
         if (task_info.inside_frames < 3) ++task_info.inside_frames;
@@ -272,7 +278,7 @@ static uint8_t select_nearest(void)
     if (!observation_fresh(o)) { task_info.reason = TASK_UPPER_WAIT; return 0; }
     for (i = 0; i < o->count; ++i) {
         const VisionObject *v = &o->objects[i];
-        if (v->kind != VISION_GREEN) continue;
+        if (v->kind != VISION_GREEN || v->in_safety_zone) continue;
         green_seen = 1;
         /* Ordered bounds reject NaN/infinity and targets behind the car. */
         if (!v->angle_present || v->distance_mm <= 0 ||

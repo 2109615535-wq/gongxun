@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "stm32f4xx_hal.h"
 
-/* vision_simple_v2 (RV2), USART6: PC6 TX / PC7 RX, 115200 8N1.
+/* Simple vision observations (RV1-RV4), USART6: PC6 TX / PC7 RX, 115200 8N1.
  * Application APIs and result reads belong to the main loop, never an ISR.
  * Results are updated/expired by vision_process() every 5 ms. */
 #define VISION_MAX_OBJECTS 12U
@@ -48,7 +48,7 @@ typedef struct {
     VisionKind kind;
     int32_t distance_mm;
     float angle;
-    uint8_t distance_valid, angle_valid, in_roi;
+    uint8_t distance_valid, angle_valid, in_roi, in_safety_zone;
     uint8_t angle_present;        /* Numeric angle, including 0; false for NA. */
 } VisionObject;
 
@@ -98,10 +98,10 @@ typedef struct {
 
 extern VisionResult vision;       /* Read directly; application must not write. */
 
-bool vision_init(void);           /* Start RV2 reception on USART6. */
-bool vision_set_task(const VisionTask *task); /* RV2 unsupported: returns false, sends nothing. */
+bool vision_init(void);           /* Start observation reception on USART6. */
+bool vision_set_task(const VisionTask *task); /* Simple protocols send observations only. */
 void vision_set_yaw(float degrees, bool valid); /* Unknown until explicitly set. */
-void vision_process(void);        /* RX and expiry; RV2 has no outbound heartbeat. */
+void vision_process(void);        /* RX and expiry. */
 
 /* Routed from the project's existing HAL callbacks. */
 void vision_uart_rx_complete(UART_HandleTypeDef *huart);

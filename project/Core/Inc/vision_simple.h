@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #define VSP_MAX_OBJECTS 12u  /* 每路每帧最多12个物体，u表示无符号整数常量。 */
-#define VSP_MAX_LINE 512u    /* 一行协议数据的字节数上限，换行符另算。 */
+#define VSP_MAX_LINE 1024u    /* 一行协议数据的字节数上限，换行符另算。 */
 #define VSP_TIMEOUT_MS 400u  /* Total age >400ms expires; exactly 400ms remains fresh. */
 
 /* enum枚举给整数起可读的名称，上视为0，下视为1。 */
@@ -28,6 +28,7 @@ typedef struct {
     int32_t distance_mm;    /* 地面径向距离，单位毫米，-1表示距离未知。 */
     uint8_t distance_valid; /* 1表示距离有效，0时数值可能只是未验证估算。 */
     uint8_t in_roi;         /* 1表示在下视夹爪区域内，夹持成功需另外判断。 */
+    uint8_t in_safety_zone; /* RV4: 当前帧整个物块ROI位于安全区内，禁止抓取。 */
     float angle;           /* RV2地面方位角，单位度，右正左负；无方位时为0。 */
     uint8_t angle_valid;    /* 有angle且距离/位置验证与150ms新鲜度均满足时为1。 */
     uint8_t angle_present;  /* RV2是否提供角度数值，供显示估计值；NA和RV1为0。 */

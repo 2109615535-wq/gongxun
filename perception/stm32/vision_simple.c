@@ -102,10 +102,31 @@ static int lookup(const char *value, const char *const *list, unsigned count) {
     return -1;
 }
 
+static int coordinate_token(const char *text) {
+    uint32_t magnitude;
+    return !strcmp(text, "NA") || number(text + (*text == '-'), 65535u, &magnitude);
+}
+
+/* Check the RV3 fields carried by RV3/RV4 even though pickup uses range and bearing. */
+static int extended_fields_valid(char *const *fields, const VSP_Object *obj, uint8_t angle_present) {
+    int x_present = strcmp(fields[0], "NA") != 0;
+    int y_present = strcmp(fields[1], "NA") != 0;
+    int zone = lookup(fields[2], names, 8) + 1;
+    uint32_t inside_valid, inside;
+    if (!coordinate_token(fields[0]) || !coordinate_token(fields[1]) ||
+        x_present != y_present || (obj->distance_valid && (!x_present || !angle_present))) return 0;
+    if (!number(fields[3], 1u, &inside_valid) || !number(fields[4], 1u, &inside) ||
+        (inside && !inside_valid)) return 0;
+    if (!strcmp(fields[2], "NA")) return !inside_valid;
+    if (zone < VSP_RED_CASUALTY_ZONE || obj->kind > VSP_BLACK || obj->kind == VSP_BLUE) return 0;
+    return (obj->kind == VSP_ORANGE) ==
+           (zone == VSP_RED_CASUALTY_ZONE || zone == VSP_BLUE_CASUALTY_ZONE);
+}
+
 static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
     /* source和o是输出参数，校验全部通过后，调用方才会保存解析结果。 */
     char *star = strchr(line, '*');
-    char *tokens[6u + 5u * VSP_MAX_OBJECTS];
+    char *tokens[6u + 11u * VSP_MAX_OBJECTS];
     char *p;
     unsigned count = 0, i, item_fields;
     uint16_t checksum = 0;
@@ -133,7 +154,10 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
     if (count < 6) return 0;
     if (!strcmp(tokens[0], "RV1")) item_fields = 4u;
     else if (!strcmp(tokens[0], "RV2")) item_fields = 5u;
+    else if (!strcmp(tokens[0], "RV3")) item_fields = 10u;
+    else if (!strcmp(tokens[0], "RV4")) item_fields = 11u;
     else return 0;
+    if (item_fields <= 5u && star - line + 5 > 512) return 0;
     if (!strcmp(tokens[1], "upper")) *source = VSP_UPPER;
     else if (!strcmp(tokens[1], "lower")) *source = VSP_LOWER;
     else return 0;
@@ -147,9 +171,10 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
         if (o->age_ms < 0 || o->age_ms >= (int32_t)VSP_TIMEOUT_MS) return 0;
         if ((o->status == VSP_OK) != (o->count > 0)) return 0;
     } else if (o->count) return 0;
-    /* RV1每物体4项，RV2追加第5项angle；严格按标识校验字段数。 */
+    /* RV1/RV2/RV3/RV4各有固定的目标字段数。 */
     for (i = 0; i < o->count; ++i) {
         unsigned offset = 6u + i * item_fields;
+        uint8_t present = 0;
         VSP_Object *obj = &o->objects[i];
         int kind = lookup(tokens[offset], names, 8);
         if (kind < 0 || !optional_number(tokens[offset+1], &obj->distance_mm)) return 0;
@@ -158,10 +183,14 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
         obj->distance_valid = (uint8_t)n;
         if (!number(tokens[offset+3], 1u, &n)) return 0;
         obj->in_roi = (uint8_t)n;
-        if (item_fields == 5u) {
-            uint8_t present;
+        if (item_fields >= 5u) {
             if (!angle_number(tokens[offset+4], &obj->angle, &present)) return 0;
             obj->angle_valid = (uint8_t)(present && obj->distance_valid);
+        }
+        if (item_fields >= 10u && !extended_fields_valid(tokens + offset + 5, obj, present)) return 0;
+        if (item_fields == 11u) {
+            if (!number(tokens[offset+10], 1u, &n) || (n && obj->kind > VSP_BLACK)) return 0;
+            obj->in_safety_zone = (uint8_t)n;
         }
         if ((obj->distance_valid && obj->distance_mm < 0) || (*source == VSP_UPPER && obj->in_roi)) return 0;
     }

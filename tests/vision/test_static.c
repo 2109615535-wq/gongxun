@@ -192,6 +192,42 @@ static void steering_pid_tests(void)
     task_stop();assert(!steer_seen && pid_steer.output==0);stopped();
     puts("PASS: actual pid.c steering PD, damping, growing/crossing errors, new-frame-only updates, deadband reset, reacquisition without kick, no added turn cap");
 }
+static void safety_zone_tests(void)
+{
+    task_stop();
+    task_start();
+    move();
+    cameras(200, 15, 1, 1);
+    vision.upper.objects[0].in_safety_zone = 1;
+    vision.lower.objects[0].in_safety_zone = 1;
+    move();
+    assert(step == 10 && task_info.reason == TASK_TARGET_LOST && servo_angle == 50);
+    stopped();
+
+    cameras(200, 15, 1, 0);
+    vision.upper.objects[0].in_safety_zone = 1;
+    vision.upper.count = 2;
+    vision.upper.objects[1] = vision.upper.objects[0];
+    vision.upper.objects[1].in_safety_zone = 0;
+    vision.upper.objects[1].distance_mm = 500;
+    vision.upper.objects[1].angle = -15;
+    move();
+    assert(step == 30 && target_angle == -15);
+
+    cameras(500, -15, 1, 1);
+    task_observe_lower();
+    assert(pending_kind == VISION_GREEN);
+    cameras(500, -15, 1, 1);
+    vision.lower.objects[0].in_safety_zone = 1;
+    move();
+    assert(step == 30 && pending_kind == VISION_NONE && servo_angle == 50);
+    stopped();
+    frame(500, -15, 1, 1);
+    assert(step == 40 && servo_angle == 100);
+    task_stop();
+    puts("PASS: protected blocks never selected or gripped, outside blocks still collected");
+}
+
 static void mission_tests(void)
 {
     unsigned i;
@@ -367,6 +403,7 @@ int main(void)
     reset_wire();vision.lower.updated_ms=tick-183;
     faraway_vision_report();drain();assert(strstr(wire,"[123,401,2,0,[]]"));
     printf("PASS: motor EN/PWM interlocks, rejected remote motion, compact CRC telemetry, NA, expiry, 64-byte chunks/5ms gaps, ring wrap, backlog skip, time rollover, 150ms reporting, 12+12 objects (%u bytes), servo 50/100 PWM and key override blocked\n",max_wire);
+    safety_zone_tests();
     mission_tests();
     return 0;
 }

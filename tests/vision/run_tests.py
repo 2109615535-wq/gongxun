@@ -1,4 +1,4 @@
-"""Compile actual RV2 UART6 receiver and static-test telemetry; no hardware is opened."""
+"""Compile the actual UART6 vision receiver and static-test telemetry; no hardware is opened."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -24,7 +24,13 @@ def main():
         obs = SimpleObservation("upper", 1000, 10, "ok",
               tuple(SimpleObject(k,500,False,False,30.0) for k in kinds))
         fixture.write_bytes(encode(obs))
-        subprocess.run([str(binary), str(fixture)], check=True)
+        extended_fixture = Path(tmp) / "rv4.txt"
+        block = SimpleObject("green", 65535, False, False, -179.99, -65535, -65535,
+                             "blue_material_zone", True, True, True)
+        zone = SimpleObject("blue_casualty_zone", 65535, False, False, -179.99, -65535, -65535)
+        obs = SimpleObservation("upper", 1001, 10, "ok", (block, zone) * 6)
+        extended_fixture.write_bytes(encode(obs, version=4))
+        subprocess.run([str(binary), str(fixture), str(extended_fixture)], check=True)
         static_binary = Path(tmp) / "test_static.exe"
         command = [args.cc, "-std=c99", "-Wall", "-W", "-Werror",
                    "-I", str(ROOT / "tests/vision/stubs"), "-I", str(ROOT / "project/Core/Inc"),

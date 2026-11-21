@@ -26,7 +26,7 @@ static void feed_wire(const char *s, int process_now)
 }
 static void send_body(const char *body, int process_now)
 {
-    char frame[1024];
+    char frame[VSP_MAX_LINE + 3u];
     snprintf(frame,sizeof(frame),"%s*%04X\r\n",body,VSP_Crc16((const uint8_t *)body,(uint16_t)strlen(body)));
     feed_wire(frame,process_now);
 }
@@ -78,6 +78,19 @@ int main(int argc, char **argv)
         assert(vision.upper.objects[3].kind==VISION_BLUE);
         assert(vision.upper.objects[11].angle_present && !vision.tx_packets);
     }
+    if (argc > 2) {
+        char buffer[VSP_MAX_LINE + 2u];
+        FILE *f = fopen(argv[2], "rb");
+        assert(f && fgets(buffer, sizeof(buffer), f));
+        fclose(f);
+        assert(strlen(buffer) > 512u);
+        feed_wire(buffer, 1);
+        assert(vision.upper.count == 12 && vision.upper.frame_id == 1001);
+        for (i = 0; i < vision.upper.count; ++i) {
+            assert(vision.upper.objects[i].kind == (i % 2 ? VISION_BLUE_CASUALTY_ZONE : VISION_GREEN));
+            assert(vision.upper.objects[i].in_safety_zone == (i % 2 == 0));
+        }
+    }
     /* UART byte arrival + main-loop queue wait are counted once. */
     tick=10000;
     {
@@ -108,5 +121,22 @@ int main(int argc, char **argv)
     puts("PASS: every queued lower frame notifies task input; receiver never controls servo");
     tick+=1001;vision_process();assert(!vision.connected && !vision.upper.count);
     puts("PASS: actual RV2 parser/UART6, no task TX or fake ACK, kind mapping, NA/estimates, age/duplicate isolation, CRC, overflow and UART recovery");
+    {
+        uint32_t bad = vision.bad_packets;
+        feed_body("RV4,lower,102,0,ok,1,green,-1,0,1,NA,NA,NA,NA,0,0,1");
+        assert(vision.lower.fresh && vision.lower.objects[0].in_safety_zone && vision.lower.objects[0].in_roi);
+        tick += 150;
+        vision_process();
+        assert(vision.lower.objects[0].in_safety_zone); /* Geometry survives distance validity expiry. */
+        feed_body("RV4,lower,103,0,ok,1,green,-1,0,1,NA,NA,NA,NA,0,0,2");
+        feed_body("RV4,lower,103,0,ok,1,blue_casualty_zone,-1,0,0,NA,NA,NA,NA,0,0,1");
+        feed_body("RV4,lower,103,0,ok,1,green,-1,0,1,NA,NA,0,NA,0,0,1");
+        feed_body("RV4,lower,103,0,ok,1,green,-1,0,1,NA,NA,NA,NA,0,0");
+        assert(vision.bad_packets == bad + 4 && vision.lower.frame_id == 102);
+        feed_body("RV3,lower,103,0,ok,1,green,-1,0,1,NA,NA,NA,red_material_zone,1,1");
+        assert(vision.lower.frame_id == 103 && !vision.lower.objects[0].in_safety_zone);
+        assert(vision.lower.objects[0].in_roi);
+    }
+    puts("PASS: RV4 safety-zone bit, malformed fields and RV3 compatibility");
     return 0;
 }

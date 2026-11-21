@@ -3,7 +3,7 @@
 #include <string.h>
 #include "decode_move.h"
 
-/* RV2 parser: codex/uart6-vision-oled ab6c6fe. No task/ACK/global ready. */
+/* Simple observations on USART6. The link reports connection and frame freshness. */
 #define RX_SIZE 2048U
 #define RX_MASK (RX_SIZE - 1U)
 extern UART_HandleTypeDef huart6;
@@ -50,6 +50,7 @@ static void update_camera(VSP_Source source, VisionObservation *out, uint32_t no
         object->angle_present = input->angle_present;
         object->angle_valid = input->angle_valid;
         object->in_roi = input->in_roi;
+        object->in_safety_zone = input->in_safety_zone;
     }
 }
 
@@ -62,7 +63,7 @@ bool vision_init(void)
     VSP_Init(&receiver);
     rx_head = rx_tail = 0;
     rx_fault = seen_packet = 0;
-    vision.danger_flag = 1; /* RV2 supplies no global safety decision. */
+    vision.danger_flag = 1; /* Simple observations supply per-object results. */
     vision.upper.age_ms = vision.lower.age_ms = UINT32_MAX;
     strcpy(vision.fault_code, "waiting_rv2");
     opened = 1;
@@ -77,7 +78,7 @@ bool vision_init(void)
 bool vision_set_task(const VisionTask *task)
 {
     (void)task;
-    return false; /* Unsupported by RV2; never claim a task was sent. */
+    return false; /* Simple protocols send observations only. */
 }
 void vision_set_yaw(float degrees, bool valid) { (void)degrees; (void)valid; }
 void vision_uart_tx_complete(UART_HandleTypeDef *huart) { (void)huart; }

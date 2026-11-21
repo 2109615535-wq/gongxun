@@ -1,8 +1,20 @@
-# 简易视觉双端协议 vision_simple_v1/v2/v3
+# 简易视觉双端协议 vision_simple_v1/v2/v3/v4
+
+## RV4 增加安全区抓取过滤（2026-11-21）
+
+```text
+RV4,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,angle,x_mm,y_mm,zone_kind,inside_valid,object_inside,in_safety_zone ...]*CRC16\n
+```
+
+每个目标 11 个字段。`in_safety_zone` 随当前帧计算。物块整个 ROI 被同一画面中任一安全区 ROI 包含时为 `1`，其余为 `0`。安全区目标该位为 `0`。STM32 的 `VSP_Object` 和 `VisionObject` 通过 `in_safety_zone` 提供该位，抓取逻辑在新鲜观测中检查它。`object_inside` 继续按连续三帧和任务所需的区域类别核验入仓。
+
+RV4 每行含 CRC、不含换行最多 1024 字节。当前接收器校验 RV3/RV4 的坐标与入仓字段，抓取逻辑沿用径向距离、方位和夹爪 ROI。RV1 至 RV3 的目标布局保持原版本。香橙派使用旧版串口协议时，区内普通、核心和伤员物块发送距离 `-1`、方位 `NA`、`distance_valid=0`、`in_roi=0`，RV3 中 X/Y 也为 `NA`，类别及入仓字段仍可读取。区内物块占据下视夹爪 ROI 时，兼容模式同时屏蔽该帧其他可抓取物块的夹爪 ROI 命中。
+
+主控固件支持 RV4 后，视觉服务使用 `--controller-protocol vision_simple_v4` 即可发送新增位。
 
 ## RV3：完整位置与视觉入仓（2026-11-16）
 
-视觉端新增 `vision_simple_v3`。本次视觉提交不包含主控 C 接收器适配，接收端需要按[主控 RV3 接入清单](../MCU_RV3_HANDOFF.md)扩展并保留 RV1/RV2 兼容。RV3 保留原来的前五个目标字段，追加 X、Y 和入仓字段；旧 RV1/RV2 布局不变。
+RV3 在 RV2 的五个目标字段后追加 X、Y 和入仓字段。直接使用 X/Y 或入仓信息的业务接入点见[主控 RV3 接入清单](../MCU_RV3_HANDOFF.md)。
 
 ```text
 RV3,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,angle,x_mm,y_mm,zone_kind,inside_valid,object_inside ...]*CRC16\n
@@ -10,19 +22,17 @@ RV3,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,
 
 每目标十个字段。X 向右、Y 向前，单位 mm，有符号整数；未知的 X、Y 必须同时为 `NA`。`angle` 为地面方位角，单位度，正前方为 0、右正左负，不是安全区自身朝向。距离仍为径向距离。有效位置必须同时具备 X、Y、距离和角度。四类物块的新鲜估算位置也可为有效。
 
-`zone_kind` 是当前物体核验的实际安全区名称，未知为 `NA`。`inside_valid` 是视觉 ROI 入仓判断有效位，`object_inside` 只有在完整物体 ROI 处于对应安全区 ROI 内且同一物体/区域连续 3 帧满足时为 1。物资对应物资区，伤员对应伤员区；主控仍需核对区域颜色。该结果独立于测距有效位，不表示夹爪已释放或投放完成。达到 150 ms 时接收器同时清除入仓有效位和已入仓标志。
+`zone_kind` 是当前物体核验的实际安全区名称，未知为 `NA`。`inside_valid` 是视觉 ROI 入仓判断有效位，`object_inside` 只有在完整物体 ROI 处于对应安全区 ROI 内且同一物体/区域连续 3 帧满足时为 1。物资对应物资区，伤员对应伤员区；主控仍需核对区域颜色。该结果独立于测距有效位，不表示夹爪已释放或投放完成。累计年龄达到 150 ms 时，视觉端撤销入仓有效位和已入仓标志。读取这两个标志的主控还需计入本地经过的时间。
 
-RV3 每行含 CRC、不含换行最多 1024 字节，最多 12 个目标；RV1/RV2 仍限制为 512 字节。发送端也将下视等待上视发送的时间计入年龄。主控头文件 `VisionObject` 对应新增 `x_mm/y_mm/position_present/zone_kind/inside_valid/object_inside`，先检查本路新鲜度及相应有效位，再使用字段。
-
-当前按用户选择先部署香橙派、主控稍后烧录，视觉服务保持原 RV2 启动参数；网页/API 提供全部位置和入仓信息。主控烧录新版接收器后，将服务协议显式改为 `--controller-protocol vision_simple_v3`。详见[部署记录](../../docs/vision_zone_entry_deployment_2026-11-16.md)。
+RV3 每行含 CRC、不含换行最多 1024 字节，最多 12 个目标。RV1/RV2 每行最多 512 字节。发送端将下视等待上视发送的时间计入年龄。
 
 以下保留 RV1/RV2 的具体接入说明。
 
 本文件位于`stm32/`，下文命令均在`perception/`根目录执行。
 
-双向任务/状态/核验使用新增 `rescue_json_v2`，详见 [TASK_PROTOCOL.md](../TASK_PROTOCOL.md)。本目录 C 文件是主控参考实现，不能解析双向任务协议；此次视觉提交不更新它们，已提交参考版本仍仅支持 RV1/RV2。
+双向任务/状态/核验使用新增 `rescue_json_v2`，详见 [TASK_PROTOCOL.md](../TASK_PROTOCOL.md)。本目录 C 文件提供 RV1 至 RV4 的主控参考接收器。
 
-2026-11-04：在现有简易协议中增加地面方位参数`angle`，新版标识为`RV2`，串口选项为`vision_simple_v2`。视觉发送识别结果，主控接收物体列表；不包含任务下发、状态机回传或动作指令。实际主控工程、板端运行服务和GitHub工作副本均未在本次修改。
+2026-11-04 在简易协议中增加地面方位参数`angle`，新版标识为`RV2`，串口选项为`vision_simple_v2`。视觉发送识别结果，主控接收物体列表；不包含任务下发、状态机回传或动作指令。实际主控工程、板端运行服务和GitHub工作副本均未在本次修改。
 
 旧`vision_simple_v1`仍发送原来的`RV1`四字段格式，不发送angle。新版C接收器接受RV1和RV2；主控须同时更新`vision_simple.c/.h`并重新编译，旧接收器不能解析RV2。原二进制`vision_v1`和JSON `rescue_json_v1`也是独立选项，不能交叉使用接收器。Python `encode()`默认生成RV2，旧端显式调用`encode(observation, version=1)`。
 

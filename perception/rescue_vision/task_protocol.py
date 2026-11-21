@@ -155,7 +155,8 @@ def results_from_snapshot(snapshot):
                         distance_valid=int(obj.distance_valid and (not blocked or row["name"] in TARGET_TYPES)),
                         angle="NA" if obj.angle is None else obj.angle, in_roi=int(obj.in_roi),
                         x_mm=obj.x_mm, y_mm=obj.y_mm, zone_kind=obj.zone_kind,
-                        inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside))
+                        inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside),
+                        in_safety_zone=int(obj.in_safety_zone))
                    for row, obj in zip(rows, obs.objects)] if usable else []
         messages.append(dict(common, msg_type="observation", source=obs.source, frame_id=obs.frame_id,
                              age_ms=obs.age_ms, status=status, objects=objects,
