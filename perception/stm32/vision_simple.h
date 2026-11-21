@@ -28,7 +28,7 @@ typedef struct {
     int32_t distance_mm;    /* 地面径向距离，单位毫米，-1表示距离未知。 */
     uint8_t distance_valid; /* 1表示距离有效，0时数值可能只是未验证估算。 */
     uint8_t in_roi;         /* 1表示在下视夹爪区域内，夹持成功需另外判断。 */
-    uint8_t in_safety_zone; /* RV4: 当前帧整个物块ROI位于安全区内，禁止抓取。 */
+    uint8_t in_safety_zone; /* RV4: 当前帧的安全区抓取过滤位。 */
     float angle;           /* RV2地面方位角，单位度，右正左负；无方位时为0。 */
     uint8_t angle_valid;    /* 有angle且距离/位置验证与150ms新鲜度均满足时为1。 */
 } VSP_Object;

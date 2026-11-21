@@ -12,7 +12,9 @@ from rescue_vision.dashboard_state import DashboardState
 from rescue_vision.dual import CameraPerception
 from rescue_vision.geometry import GroundCalibration
 from rescue_vision.protocol import crc16
-from rescue_vision.simple_protocol import SimpleObject, SimpleObservation, decode, encode, observations_from_snapshot
+from rescue_vision.simple_protocol import (
+    SimpleObject, SimpleObservation, decode, encode, observations_from_snapshot, without_legacy_pickup,
+)
 from rescue_vision.task_protocol import results_from_snapshot
 from rescue_vision.types import Detection
 
@@ -56,26 +58,50 @@ class ZoneEntryTests(unittest.TestCase):
                         self.assertFalse(zone_row["in_safety_zone"])
                         self.assertFalse(block.get("zone_entry", {}).get("object_inside", False))
 
-    def test_safety_zone_requires_full_containment_and_recomputes_on_zone_loss(self):
-        session = self.session()
-        result = self.frame(session, box=(200., 250., 260., 300.))
-        self.assertTrue(result["detections"][0]["in_safety_zone"])  # A shared edge counts.
-        result = self.frame(session, zone=None, box=(200., 250., 260., 300.))
+    def test_safety_zone_uses_block_area_and_includes_the_80_percent_boundary(self):
+        for role in ("upper", "lower"):
+            session = self.session(role)
+            for coverage, box in (
+                (1., (200., 250., 300., 300.)),
+                (.81, (190., 190., 290., 290.)),
+                (.80, (180., 250., 280., 300.)),
+                (.79, (179., 250., 279., 300.)),
+                (.64, (180., 180., 280., 280.)),
+            ):
+                with self.subTest(role=role, coverage=coverage):
+                    result = self.frame(session, box=box)
+                    self.assertEqual(result["detections"][0]["in_safety_zone"], coverage >= .8)
+            result = self.frame(session, zone_box=(0., 200., 400., 400.))
+            self.assertTrue(result["detections"][0]["in_safety_zone"])
+            result = self.frame(session, zone=None)
+            self.assertFalse(result["detections"][0]["in_safety_zone"])
+
+    def test_safety_zone_coverage_is_checked_per_zone(self):
+        result = self.frame(self.session(), box=(180., 250., 280., 300.),
+                            zone_box=(180., 200., 220., 400.),
+                            extra=(Detection("blue_material_zone", .9, (220., 200., 280., 400.)),))
         self.assertFalse(result["detections"][0]["in_safety_zone"])
-        result = self.frame(session, box=(199., 250., 260., 300.))
-        self.assertFalse(result["detections"][0]["in_safety_zone"])
-        result = self.frame(session, zone_box=(0., 200., 400., 400.))
-        self.assertTrue(result["detections"][0]["in_safety_zone"])
 
     def test_safety_zone_blocks_are_excluded_from_selection_only(self):
         self.task.update(expected="normal_material", phase="search")
         session = self.session()
-        result = self.frame(session)
+        partial = (180., 250., 280., 300.)
+        result = self.frame(session, box=partial)
         self.assertIsNone(result["selected"])
-        result = self.frame(session, extra=(Detection("normal_material", .9, (435., 250., 465., 300.)),))
+        result = self.frame(session, box=partial,
+                            extra=(Detection("normal_material", .9, (435., 250., 465., 300.)),))
         self.assertEqual(len(result["detections"]), 3)
         self.assertEqual(result["selected"]["box"], [435., 250., 465., 300.])
         self.assertFalse(result["selected"]["in_safety_zone"])
+        snapshot = dict(cameras=dict(upper=result, lower=dict(status="NO_TARGET")))
+        upper = observations_from_snapshot(snapshot)[0]
+        rv4 = decode(encode(upper, version=4))
+        self.assertEqual([obj.in_safety_zone for obj in rv4.objects], [True, False, False])
+        self.assertGreater(rv4.objects[0].distance_mm, 0)
+        rv3 = decode(encode(without_legacy_pickup(upper), version=3))
+        self.assertEqual(rv3.objects[0].distance_mm, -1)
+        self.assertIsNone(rv3.objects[0].angle)
+        self.assertGreater(rv3.objects[2].distance_mm, 0)
 
     def test_three_frames_for_material_and_casualty_zones_on_both_cameras(self):
         for role in ("upper", "lower"):
@@ -91,10 +117,12 @@ class ZoneEntryTests(unittest.TestCase):
                             self.assertEqual(entry["object_inside"], number == 3)
                             self.assertEqual(entry["result_valid"], number == 3)
 
-    def test_center_inside_but_roi_crossing_boundary_is_outside(self):
+    def test_partial_safety_zone_overlap_blocks_pickup_without_confirming_delivery(self):
         session = self.session()
         for _ in range(4):
-            entry = self.frame(session, box=(190., 250., 260., 300.))["detections"][0]["zone_entry"]
+            row = self.frame(session, box=(190., 250., 260., 300.))["detections"][0]
+            self.assertTrue(row["in_safety_zone"])
+            entry = row["zone_entry"]
             self.assertTrue(entry["result_valid"])
             self.assertFalse(entry["object_inside"])
             self.assertEqual(entry["reason"], "outside")

@@ -6,7 +6,7 @@
 RV4,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,angle,x_mm,y_mm,zone_kind,inside_valid,object_inside,in_safety_zone ...]*CRC16\n
 ```
 
-每个目标 11 个字段。`in_safety_zone` 随当前帧计算。物块整个 ROI 被同一画面中任一安全区 ROI 包含时为 `1`，其余为 `0`。安全区目标该位为 `0`。STM32 的 `VSP_Object` 和 `VisionObject` 通过 `in_safety_zone` 提供该位，抓取逻辑在新鲜观测中检查它。`object_inside` 继续按连续三帧和任务所需的区域类别核验入仓。
+每个目标 11 个字段。`in_safety_zone` 随当前帧计算。同一画面中，任一安全区 ROI 与物块 ROI 的重叠面积达到物块 ROI 面积的 80% 时为 `1`，其余为 `0`。各安全区独立计算。安全区目标该位为 `0`。STM32 的 `VSP_Object` 和 `VisionObject` 通过 `in_safety_zone` 提供该位，抓取逻辑在新鲜观测中检查它。`object_inside` 继续按连续三帧和任务所需的区域类别核验入仓。
 
 RV4 每行含 CRC、不含换行最多 1024 字节。当前接收器校验 RV3/RV4 的坐标与入仓字段，抓取逻辑沿用径向距离、方位和夹爪 ROI。RV1 至 RV3 的目标布局保持原版本。香橙派使用旧版串口协议时，区内普通、核心和伤员物块发送距离 `-1`、方位 `NA`、`distance_valid=0`、`in_roi=0`，RV3 中 X/Y 也为 `NA`，类别及入仓字段仍可读取。区内物块占据下视夹爪 ROI 时，兼容模式同时屏蔽该帧其他可抓取物块的夹爪 ROI 命中。
 

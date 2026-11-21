@@ -18,6 +18,7 @@ from .tracking import TargetTracker
 
 MATERIALS = {"normal_material", "core_material", "casualty"}
 ZONES = {"red_material_zone", "red_casualty_zone", "blue_material_zone", "blue_casualty_zone"}
+SAFETY_ZONE_MIN_COVERAGE = 0.8
 SELECTABLE = MATERIALS | ZONES
 KNOWN = set(TARGET_TYPES) | ZONES | {"gripper", "gripper_closed"}
 ROLES = ("upper", "lower")
@@ -396,14 +397,16 @@ class CameraPerception:
         return result
 
     def check_zone_entry(self, rows, *, fresh):
-        """完整物体 ROI 位于对应安全区 ROI 内，连续三帧才报告视觉入仓。"""
+        """按当前帧标记抓取保护，按连续三帧完整入区核验投放。"""
         previous, self.entry_counts = self.entry_counts, {}
         zones = [row for row in rows if row["name"] in ZONES]
         delivery_zones = [zone for zone in zones if not touches_border(zone["box"], self.calibration.size)]
         for row in rows:
             if row["name"] not in TARGET_TYPES:
                 continue
-            row["in_safety_zone"] = any(roi_contains(row["box"], zone["box"]) for zone in zones)
+            row["in_safety_zone"] = any(
+                roi_coverage(row["box"], zone["box"]) >= SAFETY_ZONE_MIN_COVERAGE for zone in zones
+            )
             if row["name"] not in MATERIALS:
                 continue
             entry = row["zone_entry"] = dict(zone_kind=None, result_valid=False, object_inside=False,

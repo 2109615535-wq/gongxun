@@ -56,7 +56,7 @@ class SimpleObject:
     zone_kind: str | None = None  # RV3：本物体入仓核验所对应的安全区。
     inside_valid: bool = False  # RV3：完整ROI包含关系的判断是否有效。
     object_inside: bool = False  # RV3：同一物体/安全区连续三帧完全包含。
-    in_safety_zone: bool = False  # RV4：当前帧物块完整ROI位于任一安全区ROI内。
+    in_safety_zone: bool = False  # RV4：当前帧任一安全区覆盖物块 ROI 面积的 80% 或以上。
 
 
 @dataclass(frozen=True)
