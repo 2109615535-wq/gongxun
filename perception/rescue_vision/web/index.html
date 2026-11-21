@@ -48,8 +48,8 @@
           ><small id="task-source">尚未收到状态机任务</small>
         </article>
         <article class="metric">
-          <span>夹爪核验</span><strong id="grip-state">待配置区域</strong
-          ><small id="grip-detail">下视连续帧确认</small>
+          <span>视觉夹取</span><strong id="grip-state">夹取待确认</strong
+          ><small id="grip-detail">等待下视观测</small>
         </article>
         <article class="metric">
           <span>控制有效性</span><strong id="motion-state">观测待验收</strong
@@ -93,12 +93,17 @@
           </div>
           <div class="detections" id="upper-detections">暂无识别结果</div>
           <p class="camera-error" id="upper-error" hidden></p>
+          <div class="roi-toolbar">
+            <button id="dataset-recording" type="button" disabled>录制数据集</button>
+            <span id="dataset-feedback" role="status">等待上视摄像头</span>
+          </div>
         </article>
         <article class="camera-card" data-role="lower">
           <div class="camera-heading">
             <div>
               <span class="camera-number">02</span>
               <h2>下视视角 <span>夹爪核验</span></h2>
+              <span class="badge" id="lower-grip-status">夹取待确认</span>
             </div>
             <span class="badge" id="lower-status">未开启</span>
           </div>

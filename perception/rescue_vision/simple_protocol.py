@@ -45,7 +45,7 @@ class SimpleObject:
     # 等号后是默认值，因此 SimpleObject("black") 也能创建一个距离未知的物体。
     kind: str  # 线上类别名，例如 green。
     distance_mm: int = -1  # 地面径向距离，单位毫米，-1表示无法提供距离。
-    distance_valid: bool = False  # True表示距离满足现有位置验证及新鲜度条件。
+    distance_valid: bool = False  # True 表示本帧的位置和方位可用，且结果新鲜。
     in_roi: bool = False  # True表示位于下视夹爪核验区域，夹持成功需另外判断。
     angle: float | None = None  # 地面方位角（度），右正左负，None表示无法提供。
     x_mm: int | None = None  # RV3：向右为正，未知为NA。
@@ -254,9 +254,6 @@ def observations_from_snapshot(snapshot):
                 distance = point.get("ground_range")
                 distance_mm = (round(distance) if type(distance) in (int, float) and
                                math.isfinite(distance) and 0 <= distance <= 65535 else -1)
-                distance_valid = bool(distance_mm >= 0 and row.get("position_mm") and
-                                      row.get("position_valid", False) and
-                                      age_ms < 150)
                 # 使用已有地面坐标，不能用图像框中心偏移代替地面方位。
                 x, y = point.get("x_right"), point.get("y_forward")
                 angle = None
@@ -267,6 +264,8 @@ def observations_from_snapshot(snapshot):
                 coordinates = (round(x), round(y)) if (type(x) in (int, float) and
                     type(y) in (int, float) and math.isfinite(x) and math.isfinite(y) and
                     abs(x) <= 65535 and abs(y) <= 65535) else (None, None)
+                distance_valid = bool(distance_mm >= 0 and angle is not None and coordinates[0] is not None and
+                                      row.get("position_valid", False) and age_ms < 150)
                 entry = row.get("zone_entry", {})
                 inside_valid = bool(entry.get("result_valid", False) and age_ms < 150)
                 objects.append(SimpleObject(CLASS_NAMES[name], distance_mm, distance_valid,

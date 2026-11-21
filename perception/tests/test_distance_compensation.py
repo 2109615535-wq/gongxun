@@ -123,7 +123,8 @@ class FittingTests(unittest.TestCase):
 
 
 class WireIntegrationTests(unittest.TestCase):
-    def observation(self, role, *, valid=True, inside_grip=False, model=None, display_only=False):
+    def observation(self, role, *, valid=True, inside_grip=False, model=None, display_only=False,
+                    name="normal_material", box=(300., 150., 340., 201.)):
         cfg = json.loads((ROOT / "config/dual_camera.json").read_text(encoding="utf-8"))
         if model is not None:
             cfg["distance_compensation"] = model
@@ -138,8 +139,8 @@ class WireIntegrationTests(unittest.TestCase):
         session = CameraPerception(role, calibration, "validated" if valid else "local_checked", cfg)
         image = np.zeros((480, 640, 3), np.uint8)
         image[150:201, 300:340] = (0, 255, 0)
-        detection = [Detection("normal_material", .9, (300., 150., 340., 201.))]
-        task = dict(source="controller", contract="rescue_json_v2", expected="normal_material",
+        detection = [Detection(name, .9, box)]
+        task = dict(source="controller", contract="rescue_json_v2", expected=name,
                     session_id="test", task_id="test", phase="approach", mechanism_state="open",
                     team_color="red")
         for stamp in (10., 10.05, 10.1):
@@ -166,11 +167,11 @@ class WireIntegrationTests(unittest.TestCase):
         for observation in json_observations:
             self.assertEqual(observation["objects"][0]["distance_mm"], truths[observation["source"]]*10)
 
-    def test_compensation_does_not_promote_invalid_position(self):
+    def test_unverified_calibration_keeps_coordinates_separate_from_motion(self):
         result, _, _ = self.observation("upper", valid=False)
         row = result["detections"][0]
         self.assertTrue(row["distance_compensation"]["applied"])
-        self.assertFalse(row["position_valid"])
+        self.assertTrue(row["position_valid"])
         self.assertFalse(result["motion_valid"])
 
     def test_held_object_is_not_projected_or_compensated(self):
@@ -179,22 +180,54 @@ class WireIntegrationTests(unittest.TestCase):
         self.assertIsNone(row["position_mm"])
         self.assertNotIn("distance_compensation", row)
 
-    def test_board_display_estimate_is_compensated_once_and_stays_invalid_on_wire(self):
-        result, _, truth = self.observation("upper", display_only=True)
-        row = result["detections"][0]
-        self.assertIsNone(row["position_mm"])
-        self.assertFalse(row["position_valid"])
-        self.assertFalse(result["motion_valid"])
-        self.assertTrue(row["distance_compensation"]["applied"])
-        self.assertAlmostEqual(row["display_position_mm"]["ground_range"], truth*10)
-        snapshot = {"cameras": {"upper": result, "lower": dict(status="NO_TARGET")}}
-        observation = observations_from_snapshot(snapshot)[0]
-        self.assertEqual(observation.objects[0].distance_mm, truth*10)
-        self.assertFalse(observation.objects[0].distance_valid)
-        self.assertAlmostEqual(observation.objects[0].angle, math.degrees(math.atan2(.6, .8)), places=2)
-        decoded = decode(encode(observation))
-        self.assertEqual(decoded.objects[0].distance_mm, truth*10)
-        self.assertFalse(decoded.objects[0].distance_valid)
+    def test_all_four_return_one_position_field_and_valid_coordinates_while_fresh(self):
+        colors = (("normal_material", "green"), ("casualty", "orange"),
+                  ("hazard", "blue"), ("core_material", "black"))
+        for name, kind in colors:
+            with self.subTest(kind=kind):
+                result, _, truth = self.observation("upper", name=name, display_only=True)
+                row = result["detections"][0]
+                self.assertTrue(row["position_valid"])
+                self.assertEqual(row["position_quality"], "position")
+                self.assertNotIn("display_position_mm", row)
+                self.assertFalse(result["motion_valid"])
+                self.assertTrue(row["distance_compensation"]["applied"])
+                self.assertAlmostEqual(row["position_mm"]["ground_range"], truth*10)
+                snapshot = {"cameras": {"upper": result, "lower": dict(status="NO_TARGET")}}
+                observation = observations_from_snapshot(snapshot)[0]
+                for version in (2, 3):
+                    obj = decode(encode(observation, version=version)).objects[0]
+                    self.assertEqual((obj.kind, obj.distance_mm, obj.distance_valid), (kind, truth*10, True))
+                    self.assertAlmostEqual(obj.angle, math.degrees(math.atan2(.6, .8)), places=2)
+                    if version == 3:
+                        self.assertEqual((obj.x_mm, obj.y_mm), (truth*6, truth*8))
+                result["age_ms"] = 150
+                self.assertFalse(observations_from_snapshot(snapshot)[0].objects[0].distance_valid)
+
+    def test_clipped_or_held_box_contact_has_no_position(self):
+        for name in ("casualty", "hazard", "core_material"):
+            for role, changes in (("upper", dict(box=(0., 150., 40., 201.))),
+                                  ("lower", dict(inside_grip=True))):
+                with self.subTest(name=name, role=role):
+                    result, _, _ = self.observation(role, name=name, display_only=True, **changes)
+                    row = result["detections"][0]
+                    self.assertIsNone(row["position_mm"])
+                    self.assertNotIn("display_position_mm", row)
+                    self.assertFalse(row["position_valid"])
+                    self.assertNotIn("distance_compensation", row)
+
+    def test_json_blue_coordinates_are_valid_alongside_hazard_status(self):
+        upper, task, truth = self.observation("upper", name="hazard", display_only=True)
+        lower, _, _ = self.observation("lower")
+        snapshot = dict(cameras=dict(upper=upper, lower=lower), task=task,
+                        controller=task, model=dict(status="READY"))
+        self.assertTrue(upper["hazard_blocked"])
+        messages = results_from_snapshot(snapshot)
+        self.assertEqual(messages[0]["danger_flag"], 1)
+        observation = next(m for m in messages if m.get("source") == "upper")
+        self.assertEqual(observation["danger_flag"], 1)
+        obj = observation["objects"][0]
+        self.assertEqual((obj["kind"], obj["distance_mm"], obj["distance_valid"]), ("blue", truth*10, 1))
 
     def test_disabled_config_sends_original_distance(self):
         result, _, truth = self.observation("upper", model={"enabled": False})

@@ -1,8 +1,9 @@
 {
   "model": "../models/best.pt",
-  "expected_model_sha256": "ab67fffaad0bbdac0f915941a328a310d55bc5a45fd5bc60f4815bbd33146d89",
+  "expected_model_sha256": "9076a13ebb726a8f83fdc3f0651ee2531244b866b6d7c463cfc7032d7a0f4d4a",
   "device": "cpu",
   "confidence": 0.35,
+  "excluded_detection_classes": ["gripper", "gripper_closed"],
   "confirm_frames": 3,
   "association_iou": 0.2,
   "grip_coverage": 0.7,

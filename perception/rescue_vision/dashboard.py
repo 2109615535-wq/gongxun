@@ -8,6 +8,7 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import threading
 import time
 from urllib.parse import urlsplit
@@ -16,6 +17,7 @@ import cv2
 
 from .bench_green import YoloDetector
 from .board_detector import ExistingUltralyticsDetector, apply_uvc_controls, verify_uvc_device
+from .dataset_recording import DatasetRecorder
 from .dashboard_state import DashboardState
 from .dual import CameraPerception, ROLES, load_camera_calibration, load_dual_config
 from .runtime import LatestFrame
@@ -53,6 +55,14 @@ def annotate_frame(image, result, roi):
         x1, y1, x2, y2 = box
         cv2.rectangle(image, (x1, y1), (x2, y2), (220, 100, 255), 2)
         cv2.putText(image, "UNCLASSIFIED", (x1, max(16, y1 - 5)), cv2.FONT_HERSHEY_SIMPLEX, .4, (220, 100, 255), 1)
+    for row in result["detections"]:
+        center = row.get("zone_center_px")
+        if center is not None:
+            point = tuple(map(round, center))
+            color = (0, 215, 255)
+            cv2.circle(image, point, 7, (0, 0, 0), 4, cv2.LINE_AA)
+            cv2.circle(image, point, 7, color, 2, cv2.LINE_AA)
+            cv2.circle(image, point, 2, color, -1, cv2.LINE_AA)
     cv2.putText(image, f"{result['role'].upper()} | {result['status']}", (10, 22),
                 cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1)
     return image
@@ -69,6 +79,7 @@ class DualRuntime:
         self.log = None
         self.log_lock = threading.Lock()
         self.processing_times = {role: deque(maxlen=60) for role in ROLES}
+        self.dataset_recorder = DatasetRecorder(ROOT / "recordings" / "dataset")
 
     def start(self):
         for role in ROLES:
@@ -138,6 +149,8 @@ class DualRuntime:
                     sequence += 1
                     self.slots[role].publish(sequence, captured, image)
                     self.state.publish_raw(role, image, captured, sequence)
+                    if role == "upper":
+                        self.dataset_recorder.offer(image)
                     captured_times.append(captured)
                     if len(captured_times) > 1:
                         with self.state.lock:
@@ -146,6 +159,8 @@ class DualRuntime:
                         next_frame += 1 / replay_fps
                         self.stop.wait(max(0, next_frame - time.monotonic()))
             except Exception as exc:
+                if role == "upper":
+                    self.dataset_recorder.stop("上视摄像头中断，已结束本段录制")
                 # Clear unread frames so a failed source cannot be revived by delayed inference.
                 with self.slots[role].condition:
                     self.slots[role].value = None
@@ -206,7 +221,7 @@ class DualRuntime:
                                                "cpu_affinity": config.get("cpu_affinity", [])}
         detector = YoloDetector(config["model"], config["confidence"], config["device"],
                                 config.get("cpu_threads", 2), ROOT / "artifacts/dual_camera/ultralytics_config",
-                                config["expected_model_sha256"])
+                                config["expected_model_sha256"], config.get("excluded_detection_classes"))
         return detector, detector, detector.metadata
 
     def infer(self):
@@ -305,6 +320,7 @@ class DualRuntime:
 
     def close(self):
         self.stop.set()
+        self.dataset_recorder.close()
         for slot in self.slots.values():
             slot.close()
         for thread in self.threads:
@@ -452,7 +468,19 @@ class ControllerLink:
         self.thread.join(timeout=2)
 
 
-def make_server(state, host, port):
+def make_server(state, host, port, dataset_recorder=None):
+    def upper_recording_frame():
+        if state.config["cameras"]["upper"].get("kind", "camera") == "camera":
+            return state.raw_image("upper")
+        return None
+
+    def dataset_status():
+        if dataset_recorder is None:
+            return None
+        status = dataset_recorder.snapshot()
+        status["available"] = upper_recording_frame() is not None
+        return status
+
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -472,8 +500,12 @@ def make_server(state, host, port):
             path = urlsplit(self.path).path
             try:
                 if path == "/api/status":
-                    data = json.dumps(state.snapshot(), ensure_ascii=False, allow_nan=False).encode("utf-8")
+                    status = state.snapshot()
+                    status["dataset_recording"] = dataset_status()
+                    data = json.dumps(status, ensure_ascii=False, allow_nan=False).encode("utf-8")
                     self.respond(200, data, "application/json; charset=utf-8")
+                elif dataset_recorder is not None and path.startswith("/api/dataset-recording/"):
+                    self.send_dataset_video(path.removeprefix("/api/dataset-recording/"))
                 elif path in ("/", "/app.js", "/style.css"):
                     filename, content_type = {"/": ("index.html", "text/html; charset=utf-8"),
                                               "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -494,6 +526,27 @@ def make_server(state, host, port):
                     self.respond(404, b"Not found", "text/plain")
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
                 pass
+
+        def send_dataset_video(self, filename):
+            # The Windows receiver reaches this loopback endpoint through SSH.
+            if self.client_address[0] != "127.0.0.1":
+                self.respond(403, b"SSH tunnel required", "text/plain")
+                return
+            try:
+                if not filename.endswith(".mp4"):
+                    raise ValueError("Invalid recording name")
+                video = dataset_recorder.video_path(filename[:-4]).open("rb")
+            except (ValueError, FileNotFoundError):
+                self.respond(404, b"Recording not found", "text/plain")
+                return
+            with video:
+                self.connection.settimeout(15)
+                self.send_response(200)
+                self.send_header("Content-Type", "video/mp4")
+                self.send_header("Content-Length", str(os.fstat(video.fileno()).st_size))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                shutil.copyfileobj(video, self.wfile, length=1024 * 1024)
 
         def stream(self, role):
             self.connection.settimeout(3)
@@ -519,9 +572,14 @@ def make_server(state, host, port):
             self.close_connection = True
 
         def do_POST(self):
-            # This endpoint selects a labelled desktop test task, never a motor command.
-            if self.path not in ("/api/debug-task", "/api/gripper-roi"):
+            dataset_request = dataset_recorder is not None and self.path in (
+                "/api/dataset-recording", "/api/dataset-recording/saved",
+            )
+            if not dataset_request and self.path not in ("/api/debug-task", "/api/gripper-roi"):
                 self.respond(404, b"Not found", "text/plain")
+                return
+            if self.path == "/api/dataset-recording/saved" and self.client_address[0] != "127.0.0.1":
+                self.respond(403, b"SSH tunnel required", "text/plain")
                 return
             origin = self.headers.get("Origin")
             if origin and urlsplit(origin).netloc != self.headers.get("Host"):
@@ -533,6 +591,13 @@ def make_server(state, host, port):
                 if not 0 < length <= 1024:
                     raise ValueError("Invalid body size")
                 data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict):
+                    raise ValueError("Invalid body")
+                if dataset_request:
+                    self.set_dataset_status(data)
+                    response = json.dumps(dataset_status(), ensure_ascii=False).encode("utf-8")
+                    self.respond(200, response, "application/json; charset=utf-8")
+                    return
                 if self.path == "/api/gripper-roi":
                     state.set_gripper_roi(data["roi_raw_xyxy"])
                 else:
@@ -541,10 +606,30 @@ def make_server(state, host, port):
             except PermissionError as exc:
                 self.respond(409, str(exc).encode("utf-8"), "text/plain; charset=utf-8")
             except OSError:
-                self.respond(500, "配置保存失败，请检查文件权限".encode("utf-8"), "text/plain; charset=utf-8")
+                message = "录像操作失败，请检查磁盘和文件权限" if dataset_request else "配置保存失败，请检查文件权限"
+                self.respond(500, message.encode("utf-8"), "text/plain; charset=utf-8")
             except (ValueError, KeyError, TypeError, TimeoutError):
                 self.close_connection = True
-                self.respond(400, b"Invalid debug task", "text/plain")
+                message = b"Invalid recording request" if dataset_request else b"Invalid debug task"
+                self.respond(400, message, "text/plain")
+
+        def set_dataset_status(self, data):
+            if self.path == "/api/dataset-recording/saved":
+                dataset_recorder.acknowledge(data["id"], data["video"], data["images"])
+                return
+            if type(data["recording"]) is not bool:
+                raise ValueError("Invalid recording state")
+            if not data["recording"]:
+                dataset_recorder.stop()
+                return
+            frame = upper_recording_frame()
+            if frame is None:
+                raise PermissionError("上视摄像头未就绪")
+            with state.lock:
+                fps = state.camera_info.get("upper", {}).get("reported_fps", 0)
+            if not 0 < fps <= 240:
+                fps = state.config["fps"]
+            dataset_recorder.start(frame[0].shape[1::-1], fps)
 
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
@@ -585,8 +670,8 @@ def main(argv=None):
     if args.record and args.record.exists():
         parser.error("日志文件已存在，请选择新文件")
     state = DashboardState(cfg, config_path=args.config.resolve())
-    server = make_server(state, args.host, args.port)
     runtime = DualRuntime(state, args.record) if args.cameras else None
+    server = make_server(state, args.host, args.port, runtime.dataset_recorder if runtime else None)
     link = ControllerLink(state, args.controller_port, args.controller_protocol) if args.controller_port else None
     timer = None
     try:

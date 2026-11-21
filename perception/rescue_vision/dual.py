@@ -194,6 +194,7 @@ class CameraPerception:
             raise ValueError("标定文件的上下视角色与配置不一致")
         self.selection = Confirmation(cfg["confirm_frames"], cfg["association_iou"])
         self.grip = Confirmation(cfg["confirm_frames"], cfg["association_iou"])
+        self.visual_grip = Confirmation(cfg["confirm_frames"], cfg["association_iou"])
         self.last_stamp = None
         self.task_key = None
         self.tracker = TargetTracker(role, cfg["association_iou"])
@@ -210,16 +211,13 @@ class CameraPerception:
     def reset(self, *, tracks=True):
         self.selection.reset()
         self.grip.reset()
+        self.visual_grip.reset()
         self.entry_counts.clear()
         if tracks:
             self.tracker.reset()
 
-    def green_display_position(self, image, detection):
-        """Extend the old ground mapping for display, including a box-edge fallback."""
-        contact = green_contact(image, detection.box, LOWER, UPPER)
-        if contact is None:
-            left, _, right, bottom = detection.box
-            contact = ((left + right) / 2, bottom - 1)
+    def project_position_outside_calibration(self, contact):
+        """Extend ground projection beyond the calibrated region."""
         pixel = cv2.undistortPoints(np.array([[contact]], np.float64), self.calibration.matrix,
                                    self.calibration.distortion, P=self.calibration.matrix)[0, 0]
         point = self.calibration.homography @ np.array([*pixel, 1.], np.float64)
@@ -297,6 +295,7 @@ class CameraPerception:
             # Use the centre only for a complete zone ROI; materials keep their contact point.
             if d.name in ZONES and not touches_border(d.box, self.calibration.size):
                 contact = ((d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2)
+                row["zone_center_px"] = contact
             # An object held above the ground must never be projected through ground H.
             elif d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
                 overlapping = any(other is not d and other.name in TARGET_TYPES and
@@ -313,23 +312,31 @@ class CameraPerception:
                     row["position_mm"] = {"x_right": x, "y_forward": y,
                                           "ground_range": math.hypot(x, y),
                                           "bearing_deg": math.degrees(math.atan2(x, y))}
-                    row["angle"] = row["position_mm"]["bearing_deg"]
-                    row["position_quality"] = "near_estimate" if near else self.quality
+                    verified = self.calibration.valid and not near
                     if d.name in ZONES:
                         row["position_quality"] = "near_estimate" if near else "zone_roi_center"
-                    elif d.name != "normal_material":
-                        row["position_quality"] = "bbox_ground_estimate"
-                    row["position_valid"] = (self.calibration.valid and not near and
-                                             (d.name == "normal_material" or d.name in ZONES))
-            if d.name == "normal_material" and row["position_mm"] is None and not inside_grip:
-                row["display_position_mm"] = self.green_display_position(image, d)
-            position = row["position_mm"] or row.get("display_position_mm")
+                        row["position_valid"] = verified
+                    else:
+                        row["position_quality"] = "validated" if verified else "position"
+            if d.name in TARGET_TYPES and row["position_mm"] is None and not inside_grip:
+                if d.name == "normal_material" and contact is None:
+                    contact = green_contact(image, d.box, LOWER, UPPER)
+                    if contact is None:
+                        contact = ((d.box[0] + d.box[2]) / 2, d.box[3] - 1)
+                if contact is not None:
+                    row["position_mm"] = self.project_position_outside_calibration(contact)
+                    if row["position_mm"] is not None:
+                        row["position_quality"] = "position"
+            position = row["position_mm"]
             if position is not None:
                 (x, y), compensation = self.distance_compensation.apply(
                     (position["x_right"], position["y_forward"]))
                 row["distance_compensation"] = compensation
                 position.update(x_right=x, y_forward=y, ground_range=math.hypot(x, y),
                                 bearing_deg=math.degrees(math.atan2(x, y)))
+                row["angle"] = position["bearing_deg"]
+                if d.name in TARGET_TYPES:
+                    row["position_valid"] = True
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
         self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"])
@@ -356,6 +363,7 @@ class CameraPerception:
             selected["confirm_count"] = self.selection.count
             result["selected"] = selected
             result["motion_valid"] = (selected["confirmed"] and selected["position_valid"]
+                                      and selected["position_quality"] in ("validated", "zone_roi_center")
                                       and age <= self.cfg["control_max_age_ms"]
                                       and not result["hazard_blocked"] and task.get("source") == "controller")
             if task.get("contract") == "rescue_json_v2":
@@ -363,10 +371,22 @@ class CameraPerception:
         else:
             self.selection.reset()
         if self.role == "lower":
-            result["gripper"] = self.check_gripper(result["detections"], expected, key, image,
-                                                    locked_target_id=locked)
+            delivery_check = task.get("phase") == "delivery_check"
+            if delivery_check and age >= self.cfg["control_max_age_ms"]:
+                self.grip.reset()
+                result["gripper"]["status"] = "STALE"
+            else:
+                # 投放后检查夹爪是否为空，物块锁号仍用于核对安全区里的目标。
+                result["gripper"] = self.check_gripper(result["detections"], expected, key, image,
+                                                      locked_target_id=0 if delivery_check else locked)
             if result["gripper"].get("unknown_regions"):
                 result.update(hazard_blocked=True, motion_valid=False)
+            if task.get("source") == "debug" and expected not in MATERIALS:
+                if age < self.cfg["control_max_age_ms"]:
+                    result["gripper"]["visual"] = self.check_gripper(
+                        result["detections"], expected, key, image, visual_only=True)
+                else:
+                    self.visual_grip.reset()
         return result
 
     def check_zone_entry(self, rows, *, fresh):
@@ -402,8 +422,9 @@ class CameraPerception:
             elif matching:
                 entry["reason"] = "zone_ambiguous"
 
-    def check_gripper(self, rows, expected, task_key, image, *, locked_target_id=0):
+    def check_gripper(self, rows, expected, task_key, image, *, locked_target_id=0, visual_only=False):
         # count仍表示连续帧数，roi_count才是机构区域的实际物体数量。
+        confirmation = self.visual_grip if visual_only else self.grip
         roi = self.cfg["gripper"]["roi_raw_xyxy"]
         objects = [row for row in rows if row.get("intersects_gripper_roi", row["inside_gripper_roi"])
                    and row["name"] not in {"gripper", "gripper_closed"} | ZONES]
@@ -412,14 +433,14 @@ class CameraPerception:
                  "result_valid": False, "danger_flag": 1, "danger_reason": "roi_unverified"}
 
         def reject(status, reason, *, valid=False):
-            self.grip.reset()
+            confirmation.reset()
             return dict(value, status=status, danger_reason=reason,
                         result_valid=bool(valid and self.cfg["gripper"]["validated"]))
 
         if roi is None:
-            self.grip.reset()
+            confirmation.reset()
             return value
-        if expected not in MATERIALS:
+        if not visual_only and expected not in MATERIALS:
             return reject("WAITING_TASK", "expected_kind_unknown")
         if any(row["name"] not in KNOWN for row in objects):
             return reject("UNCLASSIFIED_OBJECT", "unknown_object")
@@ -437,9 +458,10 @@ class CameraPerception:
         if locked_target_id and (candidate is None or candidate.get("target_id") != locked_target_id):
             return reject("MISMATCH", "locked_target_lost")
         observed = candidate["name"] if candidate else None
-        outcome = "EMPTY" if candidate is None else ("MATCH" if observed == expected else "MISMATCH")
-        stable = self.grip.update((task_key, outcome, observed, candidate.get("target_id") if candidate else None),
-                                  candidate["box"] if candidate else None)
+        matches = observed in MATERIALS if visual_only else observed == expected
+        outcome = "EMPTY" if candidate is None else ("MATCH" if matches else "MISMATCH")
+        stable = confirmation.update((task_key, outcome, observed, candidate.get("target_id") if candidate else None),
+                                     candidate["box"] if candidate else None)
         status = outcome if stable else "CONFIRMING"
         validated = self.cfg["gripper"]["validated"]
         if stable and not validated:
@@ -448,5 +470,5 @@ class CameraPerception:
         match = valid and outcome == "MATCH"
         reason = ("roi_unverified" if not validated else "confirming" if not stable else
                   "none" if match else "empty_roi" if candidate is None else "kind_mismatch")
-        return dict(value, status=status, observed=observed, count=self.grip.count,
+        return dict(value, status=status, observed=observed, count=confirmation.count,
                     match=match, result_valid=valid, danger_flag=int(not match), danger_reason=reason)

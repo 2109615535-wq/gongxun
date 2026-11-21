@@ -314,6 +314,39 @@ class RoiTests(unittest.TestCase):
         self.assertEqual(result["gripper"]["count"], 1)
         self.assertFalse(result["gripper"]["result_valid"])
 
+    def test_visual_grip_confirms_without_a_task_and_expires_at_read_time(self):
+        now = 10.01
+        state = DashboardState(self.cfg, clock=lambda: now)
+        detection = Detection("normal_material", .9, (130, 150, 180, 200))
+        for count in range(1, 4):
+            now += .04
+            frame = self.session.process(self.image, [detection], now - .01, now, state.task())
+            state.publish_result("lower", frame)
+            grip = state.snapshot()["gripper"]
+            self.assertEqual(grip["status"], "WAITING_TASK")
+            self.assertFalse(grip["controller_match"])
+            self.assertEqual(grip["visual"]["count"], count)
+            self.assertEqual(grip["visual"]["match"], count == 3)
+
+        now += .15
+        grip = state.snapshot()["gripper"]["visual"]
+        self.assertEqual(grip["status"], "STALE")
+        self.assertFalse(grip["result_valid"])
+        self.assertFalse(grip["match"])
+
+    def test_visual_grip_rejects_objects_crossing_the_roi(self):
+        current = DashboardState(self.cfg).task()
+        full = Detection("normal_material", .9, (105, 150, 155, 200))
+        partial = Detection("normal_material", .9, (95, 150, 145, 200))
+        for stamp in (10., 10.04):
+            self.session.process(self.image, [full], stamp, stamp + .01, current)
+        result = self.session.process(self.image, [partial], 10.08, 10.09, current)
+        visual = result["gripper"]["visual"]
+        self.assertTrue(result["detections"][0]["inside_gripper_roi"])
+        self.assertEqual((visual["match"], visual["count"], visual["danger_reason"]), (False, 0, "occluded"))
+        result = self.session.process(self.image, [full], 10.12, 10.13, current)
+        self.assertEqual(result["gripper"]["visual"]["count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

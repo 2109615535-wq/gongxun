@@ -22,6 +22,7 @@ const statuses = {
   RESOLUTION_MISMATCH: "分辨率不符",
   INVALID_DETECTIONS: "检测输入异常",
   REPLAY_ENDED: "回放结束",
+  VIDEO_REPLAY: "当前为视频回放",
   STOPPED: "已停止",
   UNCONFIGURED: "待配置区域",
   NOT_APPLICABLE: "无核验任务",
@@ -48,22 +49,28 @@ const qualities = {
   local_checked: "局部独立检查通过",
   fit_only: "拟合完成 · 待独立检查",
   validated: "标定验证通过",
-  near_estimate: "近处外推估算",
-  bbox_ground_estimate: "框底边地面估算",
-  display_estimate: "旧标定地面估算",
-  zone_roi_center: "安全区 ROI 中心",
-  unavailable: "暂无地面坐标",
+};
+const invalidGripReasons = {
+  empty_roi: "夹爪区无目标",
+  occluded: "目标超出夹爪区或被遮挡",
+  multiple_objects: "夹爪区有多个目标",
+  hazard: "夹爪区有危险目标",
+  unknown_object: "夹爪区有未识别物体",
+  kind_mismatch: "目标类别与任务不符",
+  locked_target_lost: "任务锁定目标丢失",
 };
 const byId = (id) => document.getElementById(id);
 const label = (value) => statuses[value] || value || "—";
-const mm = (value, estimate = false) =>
-  Number.isFinite(value) ? `${estimate ? "≈ " : ""}${value.toFixed(1)} mm` : "—";
+const mm = (value) =>
+  Number.isFinite(value) ? `${value.toFixed(1)} mm` : "—";
 let paused = false;
 let lastState = null;
 let pollRunning = false;
 let failures = 0;
 let taskFormDirty = false;
 let taskSubmitting = false;
+let datasetSubmitting = false;
+let datasetError = "";
 
 function stopStream(role) {
   const image = byId(`${role}-image`);
@@ -76,6 +83,34 @@ function getDisplayPosition(detection) {
   return [detection?.position_mm, detection?.display_position_mm].find(
     (point) => Number.isFinite(point?.x_right) && Number.isFinite(point?.y_forward),
   ) || null;
+}
+
+function setGripStatus(tone, detail) {
+  const value = tone === "good" ? "夹取有效" : tone === "bad" ? "夹取无效" : "夹取待确认";
+  const status = byId("grip-state");
+  status.textContent = value;
+  status.className = tone === "good" ? "positive" : tone === "bad" ? "warning" : "";
+  byId("grip-detail").textContent = detail;
+  const badge = byId("lower-grip-status");
+  badge.textContent = value;
+  badge.className = tone ? `badge ${tone}` : "badge";
+  badge.title = detail;
+}
+
+function renderGrip(state) {
+  const grip = state.gripper.visual;
+  if (!state.gripper_config.roi_raw_xyxy)
+    return setGripStatus("", "夹爪 ROI 待配置");
+  if (!grip) return setGripStatus("", "等待下视观测");
+  if (grip.result_valid && grip.match)
+    return setGripStatus("good", `${names[grip.observed]} · 连续 ${grip.confirm_frames} 帧确认`);
+  const reason = invalidGripReasons[grip.danger_reason];
+  if (reason) return setGripStatus("bad", reason);
+  if (grip.danger_reason === "roi_unverified")
+    return setGripStatus("", "夹爪 ROI 待实车验证");
+  if (grip.status === "CONFIRMING")
+    return setGripStatus("", `${names[grip.observed] || "夹爪区核验"} · ${grip.count}/${grip.confirm_frames} 帧`);
+  setGripStatus("", label(grip.status));
 }
 
 function renderCamera(role, camera) {
@@ -104,19 +139,14 @@ function renderCamera(role, camera) {
     camera.detections?.find((item) => item.name === "normal_material" && getDisplayPosition(item)) ||
     camera.detections?.find((item) => getDisplayPosition(item));
   const point = fresh ? getDisplayPosition(target) : null;
-  const estimate = point && (!target.position_valid || camera.age_ms >= 150 ||
-    point === target.display_position_mm);
-  byId(`${role}-x`).textContent = mm(point?.x_right, estimate);
-  byId(`${role}-y`).textContent = mm(point?.y_forward, estimate);
+  byId(`${role}-x`).textContent = mm(point?.x_right);
+  byId(`${role}-y`).textContent = mm(point?.y_forward);
   byId(`${role}-age`).textContent = Number.isFinite(camera.age_ms)
     ? `${Math.round(camera.age_ms)} ms`
     : "—";
-  const quality = (point && point === target.display_position_mm ? "display_estimate" :
-    target?.position_quality) ||
-    camera.calibration_quality ||
-    camera.info?.quality;
+  const quality = camera.calibration_quality || camera.info?.quality;
   const targetLabel = point ? ` · ${names[target.name] || target.name}${target.target_id ? ` #${target.target_id}` : ""}` : "";
-  byId(`${role}-quality`).textContent = (qualities[quality] || "等待加载标定") + targetLabel;
+  byId(`${role}-quality`).textContent = point ? `位置${targetLabel}` : qualities[quality] || "等待加载标定";
   byId(`${role}-inference`).textContent = Number.isFinite(camera.inference_ms)
     ? `检测 ${Number.isFinite(camera.processing_hz) ? camera.processing_hz.toFixed(1) : "—"} Hz · 画面 ${Number.isFinite(camera.info?.preview_hz) ? camera.info.preview_hz.toFixed(1) : "—"} Hz`
     : "推理 —";
@@ -131,8 +161,7 @@ function renderCamera(role, camera) {
     chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
     const position = fresh ? getDisplayPosition(item) : null;
     if (position) {
-      const itemEstimate = !item.position_valid || camera.age_ms >= 150 || position === item.display_position_mm;
-      chip.textContent += ` · X ${mm(position.x_right, itemEstimate)} · Y ${mm(position.y_forward, itemEstimate)} · 距离 ${mm(position.ground_range, itemEstimate)} · 方位 ${Number.isFinite(position.bearing_deg) ? `${itemEstimate ? "≈ " : ""}${position.bearing_deg.toFixed(2)}°` : "—"}`;
+      chip.textContent += ` · X ${mm(position.x_right)} · Y ${mm(position.y_forward)} · 距离 ${mm(position.ground_range)} · 方位 ${Number.isFinite(position.bearing_deg) ? `${position.bearing_deg.toFixed(2)}°` : "—"}`;
     }
     const entry = item.zone_entry;
     if (entry) {
@@ -148,8 +177,57 @@ function renderCamera(role, camera) {
   byId(`${role}-error`).hidden = !camera.error;
 }
 
+function renderDataset(recording, connected = true) {
+  const button = byId("dataset-recording");
+  const feedback = byId("dataset-feedback");
+  const active = Boolean(recording?.recording);
+  button.textContent = active ? "停止录制" : "录制数据集";
+  button.setAttribute("aria-pressed", String(active));
+  button.disabled = !connected || datasetSubmitting || recording?.finalizing ||
+    (!active && !recording?.available);
+
+  let message = "等待上视摄像头";
+  if (!connected) message = "服务连接中断";
+  else if (datasetError) message = datasetError;
+  else if (active) message = "正在录制上视原始画面";
+  else if (recording?.finalizing) message = "正在保存录像";
+  else if (recording?.error) message = recording.error;
+  else if (recording?.pending.length) message = `等待电脑接收 ${recording.pending.length} 段录像`;
+  else if (recording?.last_saved) {
+    const saved = recording.last_saved;
+    message = `已保存 ${saved.video}，抽取 ${saved.images} 张照片`;
+  } else if (recording?.available) message = "上视原始画面";
+
+  if (recording?.dropped_frames) message += ` · 丢帧 ${recording.dropped_frames}`;
+  if (feedback.textContent !== message) feedback.textContent = message;
+}
+
+async function toggleDataset() {
+  if (datasetSubmitting || !lastState?.dataset_recording) return;
+  const recording = lastState.dataset_recording;
+  datasetSubmitting = true;
+  datasetError = "";
+  renderDataset(recording);
+  try {
+    const response = await fetch("/api/dataset-recording", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recording: !recording.recording }),
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    lastState.dataset_recording = await response.json();
+  } catch (error) {
+    datasetError = error.message || "录像操作失败";
+  } finally {
+    datasetSubmitting = false;
+    renderDataset(lastState.dataset_recording, !failures);
+  }
+}
+
 function render(state) {
   lastState = state;
+  renderDataset(state.dataset_recording);
   for (const role of ["upper", "lower"])
     renderCamera(role, state.cameras[role]);
   const nav = state.navigation;
@@ -166,13 +244,7 @@ function render(state) {
       : state.task.expected
         ? `网页联调 · ${state.task.state || "IDLE"}`
         : `等待目标 · ${state.task.state || "IDLE"}`;
-  const gripStatus = state.gripper_config.roi_raw_xyxy
-    ? state.gripper.status
-    : "UNCONFIGURED";
-  byId("grip-state").textContent = label(gripStatus);
-  byId("grip-detail").textContent = state.gripper.observed
-    ? `识别为${names[state.gripper.observed] || state.gripper.observed} · 连续 ${state.gripper.count} 帧`
-    : "下视连续帧确认";
+  renderGrip(state);
   byId("motion-state").textContent = nav.motion_valid
     ? "观测有效"
     : "控制条件未满足";
@@ -227,6 +299,7 @@ function render(state) {
 }
 
 function disconnected() {
+  renderDataset(lastState?.dataset_recording, false);
   byId("connection-alert").hidden = false;
   byId("service-status").textContent = "服务连接中断";
   byId("service-dot").className = "dot";
@@ -240,7 +313,7 @@ function disconnected() {
   }
   byId("motion-state").textContent = "观测已失效";
   byId("motion-state").className = "warning";
-  byId("grip-state").textContent = "等待新鲜观测";
+  setGripStatus("", "等待下视新鲜观测");
   byId("distance-source").textContent = "等待观测";
   byId("task-name").textContent = "任务状态未知";
   byId("controller-state").textContent = "主控状态未知";
@@ -279,6 +352,7 @@ byId("pause").addEventListener("click", () => {
   byId("pause").textContent = paused ? "恢复画面" : "暂停画面";
   if (lastState && !failures) render(lastState);
 });
+byId("dataset-recording").addEventListener("click", toggleDataset);
 async function applyTask() {
   if (taskSubmitting) return;
   taskFormDirty = true;

@@ -1,8 +1,9 @@
 {
   "model": "../models/best_rknn_model",
-  "expected_model_sha256": "88b23a951327afa4295136fe334f9c22953a37caefe6252ea7a71e6df560cfa8",
+  "expected_model_sha256": "490bf1978ecaad3ee6e403a4c0bc98adc5a1230eed7aac952204b0fe3508ae0a",
   "device": "cpu",
   "confidence": 0.35,
+  "excluded_detection_classes": ["gripper", "gripper_closed"],
   "confirm_frames": 3,
   "association_iou": 0.2,
   "grip_coverage": 0.7,
