@@ -47,10 +47,8 @@ typedef struct {
     uint32_t target_id;
     VisionKind kind;
     int32_t distance_mm;
-    int32_t x_mm, y_mm;           /* RV3/RV4 ground coordinates in mm, +X right and +Y forward. */
     float angle;
     uint8_t distance_valid, angle_valid, in_roi, in_safety_zone;
-    uint8_t position_present;    /* Both coordinates supplied, including unverified estimates. */
     uint8_t angle_present;        /* Numeric angle, including 0; false for NA. */
 } VisionObject;
 

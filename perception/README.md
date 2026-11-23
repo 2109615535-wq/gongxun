@@ -197,11 +197,11 @@ OLED 联调固件和 systemd 配置示例见 [codex/uart6-vision-oled](https://g
 
 ## 7. 坐标、测距补偿和视觉核验
 
-任一路相机检出的红蓝物资区和伤员区都随当帧观测上报。视觉取安全区检测框中心，按现有标定和径向补偿计算 X、Y、距离和方位角。超出常规投影范围时沿用地面单应外推，有截边时使用可见框中心。这两类结果通过 `distance_valid=0` 标为估算。无法求得地面位置时，类别随帧发送，坐标与方位填 `NA`、距离填 `-1`。物块的位置取地面接触点。实际控制沿用标定区域、位置质量和新鲜度检查。[测距拟合结果](config/dual_calibration/distance_compensation_fit.json)
+任一路相机检出的红蓝物资区和伤员区都随当帧观测上报。视觉取安全区检测框中心，按现有标定和径向补偿计算 X、Y、距离和方位角。超出常规投影范围时沿用地面单应外推，有截边时使用可见框中心。只要当前新鲜帧检出安全区并算得中心位置和方位，就发送 `distance_valid=1`，包括范围外、截边和未验证标定下的估算。无法求得地面位置时，类别随帧发送，坐标与方位填 `NA`、距离填 `-1`，有效位为 0。物块的位置取地面接触点。[测距拟合结果](config/dual_calibration/distance_compensation_fit.json)
 
 目标完整进入同类安全区、同一目标与区域连续三帧成立时，视觉报告 `object_inside`。主控报告松爪并退开后，可在 `delivery_check` 阶段核对锁定物体留在区内、已验证的下视 ROI 为空以及两路观测的新鲜度。执行条件和状态字段见 [TASK_PROTOCOL.md](TASK_PROTOCOL.md)。
 
-RV2 发送距离和方位角。RV3/RV4 同时发送毫米 X/Y，主控可从 `VisionObject.x_mm/y_mm` 读取，并通过 `position_present` 判断坐标是否随帧送达。`distance_valid` 继续反映标定与新鲜度。RV4 另有安全区抓取过滤位。完整布局见 [SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)。
+现有主控通过 `distance_mm` 和 `angle` 获取安全区中心位置，并按 `distance_valid`、`angle_valid` 和新鲜度判断数据是否可用。RV3/RV4 报文还包含毫米 X/Y，RV4 附带安全区抓取过滤位。完整布局见 [SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)。
 
 ## 8. 数据集录制与离线检查
 

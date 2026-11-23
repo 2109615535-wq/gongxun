@@ -325,7 +325,6 @@ class CameraPerception:
                         row["position_quality"] = "near_estimate" if near else "zone_roi_center"
                         if clipped:
                             row["position_quality"] = "position"
-                        row["position_valid"] = verified and not clipped
                     else:
                         row["position_quality"] = "validated" if verified else "position"
             if row["position_mm"] is None and (d.name in ZONES or (d.name in TARGET_TYPES and not inside_grip)):
@@ -345,8 +344,7 @@ class CameraPerception:
                 position.update(x_right=x, y_forward=y, ground_range=math.hypot(x, y),
                                 bearing_deg=math.degrees(math.atan2(x, y)))
                 row["angle"] = position["bearing_deg"]
-                if d.name in TARGET_TYPES:
-                    row["position_valid"] = True
+                row["position_valid"] = True
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
         self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"])
@@ -374,6 +372,7 @@ class CameraPerception:
             result["selected"] = selected
             result["motion_valid"] = (selected["confirmed"] and selected["position_valid"]
                                       and selected["position_quality"] in ("validated", "zone_roi_center")
+                                      and (selected["name"] not in ZONES or self.calibration.valid)
                                       and age <= self.cfg["control_max_age_ms"]
                                       and not result["hazard_blocked"] and task.get("source") == "controller")
             if task.get("contract") == "rescue_json_v2":

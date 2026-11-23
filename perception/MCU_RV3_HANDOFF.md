@@ -1,6 +1,6 @@
 # 主控接入 RV3 所需修改
 
-截至 2026-11-23，STM32 的 `VSP_Object` 和 `VisionObject` 支持直接读取 RV3/RV4 的 `x_mm/y_mm/position_present`。收到估算坐标时 `position_present=1`、`distance_valid=0`。以下保留原始 RV3 交接记录。
+当前安全区中心上报沿用已烧录主控的 RV4，可通过 `distance_mm`、`angle` 和现有有效位使用。能够解算位置和方位的当前新鲜帧包含有效的估算坐标。以下保留 2026-11-16 的原始 RV3 交接记录。
 
 ## 2026-11-16 提交范围
 

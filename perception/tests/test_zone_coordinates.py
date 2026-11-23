@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -27,7 +28,7 @@ TASK = dict(source="controller", contract="rescue_json_v2", session_id="zones",
 
 class ZoneCoordinatesTests(unittest.TestCase):
     def process(self, role, *, names=ZONE_NAMES[:1], valid=True, box=BOX, distortion=None,
-                output_max=None, grip_roi=None, polygon=None):
+                output_max=None, grip_roi=None, polygon=None, task=TASK):
         cfg = json.loads((ROOT / "config/dual_camera.json").read_text(encoding="utf-8"))
         # r=20 cm 时原始距离为 r+0.01*r²=24 cm，补偿后应为 200 mm。
         cfg["distance_compensation"] = dict(enabled=True, error_coefficients_cm=[.01, 0., 0.],
@@ -46,7 +47,7 @@ class ZoneCoordinatesTests(unittest.TestCase):
         session = CameraPerception(role, calibration, "validated" if valid else "fit_only", cfg)
         image = np.zeros((480, 640, 3), np.uint8)
         detections = [Detection(name, .9, box) for name in names]
-        result = session.process(image, detections, 10., 10.01, TASK)
+        result = session.process(image, detections, 10., 10.01, task)
         result.update(mode="camera", sequence=1, task_current=True, age_ms=10)
         return result
 
@@ -83,7 +84,7 @@ class ZoneCoordinatesTests(unittest.TestCase):
             clipped = self.process(role, names=ZONE_NAMES[:1], box=(0., 384., 412., 424.))
             marked = annotate_frame(image, clipped, None)
             self.assertEqual(tuple(marked[404, 206]), (0, 0, 0))
-            self.assertFalse(clipped["detections"][0]["position_valid"])
+            self.assertTrue(clipped["detections"][0]["position_valid"])
 
             material = self.process(role, names=("normal_material",))
             marked = annotate_frame(image, material, None)
@@ -127,13 +128,27 @@ class ZoneCoordinatesTests(unittest.TestCase):
                 dock = next(m for m in messages if m["msg_type"] == "dock")
                 self.assertEqual(dock["dock_valid"], 0)
 
-    def test_unverified_calibration_keeps_numeric_coordinates_invalid(self):
+    def test_unverified_calibration_still_returns_valid_observations(self):
         snapshot = self.snapshot(valid=False)
         for observation in observations_from_snapshot(snapshot):
             obj, = observation.objects
             self.assertEqual(obj.distance_mm, 200)
-            self.assertFalse(obj.distance_valid)
+            self.assertTrue(obj.distance_valid)
             self.assertEqual(obj.angle, 36.87)
+        messages = results_from_snapshot(snapshot)
+        status = next(msg for msg in messages if msg["msg_type"] == "status")
+        self.assertEqual((status["vision_ready"], status["danger_flag"]), (0, 1))
+        for message in messages:
+            if message["msg_type"] == "observation":
+                obj, = message["objects"]
+                self.assertEqual(obj["distance_valid"], 1)
+
+    def test_zone_observation_validity_is_independent_from_legacy_navigation(self):
+        task = dict(TASK, contract="rescue_json_v1", expected=ZONE_NAMES[0])
+        with patch("rescue_vision.dual.Confirmation.update", return_value=True):
+            result = self.process("upper", valid=False, task=task)
+        self.assertTrue(result["selected"]["position_valid"])
+        self.assertFalse(result["motion_valid"])
 
     def test_orange_blue_and_black_use_box_contact_with_either_calibration_state(self):
         for name, kind in (("casualty", "orange"), ("hazard", "blue"), ("core_material", "black")):
@@ -156,7 +171,7 @@ class ZoneCoordinatesTests(unittest.TestCase):
                     obj, = decoded.objects
                     self.assertEqual((obj.kind, obj.x_mm, obj.y_mm, obj.distance_mm, obj.angle),
                                      ("blue_casualty_zone", 120, 160, 200, 36.87))
-                    self.assertFalse(obj.distance_valid)
+                    self.assertTrue(obj.distance_valid)
 
     def test_clipped_roi_sends_its_visible_center_as_an_estimate(self):
         expected_angle = round(math.degrees(math.atan2(-228., 192.)), 2)
@@ -166,6 +181,15 @@ class ZoneCoordinatesTests(unittest.TestCase):
             self.assertLess(obj.x_mm, 0)
             self.assertGreater(obj.y_mm, 0)
             self.assertEqual(obj.angle, expected_angle)
+            self.assertTrue(obj.distance_valid)
+
+    def test_unprojectable_detection_has_no_valid_distance(self):
+        with patch.object(CameraPerception, "project_position_outside_calibration", return_value=None):
+            snapshot = self.snapshot(output_max=180.)
+        for observation in observations_from_snapshot(snapshot):
+            obj, = decode(encode(observation, version=4)).objects
+            self.assertEqual(obj.kind, ZONE_NAMES[0])
+            self.assertEqual((obj.x_mm, obj.y_mm, obj.distance_mm, obj.angle), (None, None, -1, None))
             self.assertFalse(obj.distance_valid)
 
     def test_zone_on_ground_is_projected_when_overlapping_gripper_roi(self):

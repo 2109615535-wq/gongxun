@@ -45,9 +45,6 @@ static void update_camera(VSP_Source source, VisionObservation *out, uint32_t no
         object->target_id = i + 1U; /* Frame-local display index, NOT tracking. */
         object->kind = convert_kind(input->kind);
         object->distance_mm = input->distance_mm;
-        object->x_mm = input->x_mm;
-        object->y_mm = input->y_mm;
-        object->position_present = input->position_present;
         object->distance_valid = input->distance_valid;
         object->angle = input->angle;
         object->angle_present = input->angle_present;
