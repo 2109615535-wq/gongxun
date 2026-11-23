@@ -1,0 +1,6 @@
+{
+    "cmake.cmakePath": "cube-cmake",
+    "cmake.useCMakePresets": "always",
+    "stm32flash.buildDir": "build/Debug",
+    "stm32flash.buildAndFlashTask": "DAPLink: 编译并下载"
+}

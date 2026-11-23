@@ -60,6 +60,9 @@ void MotorEnable4(uint8_t Enable);
 
 
 void motor_process(void);
+/* M1..M4 applied speed-PID targets, normalized to the encoder/PWM scale. */
+uint8_t Motor_DriveEnabled(void);
+void Motor_GetWheelTargets(int16_t targets[4]);
 /* Retained four-wheel targets, cm/s; common 90% scale; acceleration ramp currently disabled.
  * Calling once is sufficient. Does not enable the drive. */
 void Motor_SetWheelSpeedCmS(float w1, float w2, float w3, float w4);

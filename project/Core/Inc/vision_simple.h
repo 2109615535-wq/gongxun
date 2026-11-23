@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #define VSP_MAX_OBJECTS 12u  /* 每路每帧最多12个物体，u表示无符号整数常量。 */
-#define VSP_MAX_LINE 512u    /* 一行协议数据的字节数上限，换行符另算。 */
+#define VSP_MAX_LINE 1024u   /* RV3/RV4 含 CRC，不含换行。 */
 #define VSP_TIMEOUT_MS 400u  /* Total age >400ms expires; exactly 400ms remains fresh. */
 
 /* enum枚举给整数起可读的名称，上视为0，下视为1。 */
@@ -15,7 +15,7 @@ typedef enum { VSP_UPPER = 0, VSP_LOWER = 1 } VSP_Source;
 /* 内部枚举的顺序与vision_simple.c的names数组对应，串口上传输英文名称。 */
 typedef enum {
     /* 有目标、空场、过期、故障、目标数量超限、尚无数据。 */
-    VSP_GREEN = 1, VSP_ORANGE, VSP_BLUE, VSP_BLACK,
+    VSP_NONE = 0, VSP_GREEN, VSP_ORANGE, VSP_BLUE, VSP_BLACK,
     VSP_RED_CASUALTY_ZONE, VSP_RED_MATERIAL_ZONE,
     VSP_BLUE_CASUALTY_ZONE, VSP_BLUE_MATERIAL_ZONE
 } VSP_Kind;
@@ -28,9 +28,14 @@ typedef struct {
     int32_t distance_mm;    /* 地面径向距离，单位毫米，-1表示距离未知。 */
     uint8_t distance_valid; /* 1表示距离有效，0时数值可能只是未验证估算。 */
     uint8_t in_roi;         /* 1表示在下视夹爪区域内，夹持成功需另外判断。 */
-    float angle;           /* RV2地面方位角，单位度，右正左负；无方位时为0。 */
+    uint8_t in_safety_zone; /* RV4 安全区内物块抓取保护，RV3 默认 0。 */
+    float angle;           /* 地面方位角，单位度，右正左负。 */
+    int32_t x_mm, y_mm;     /* 车体相对坐标，X 向右、Y 向前。 */
+    VSP_Kind zone_kind;     /* 入仓判断对应的区域，VSP_NONE 表示未知。 */
     uint8_t angle_valid;    /* 有angle且距离/位置验证与150ms新鲜度均满足时为1。 */
-    uint8_t angle_present;  /* RV2是否提供角度数值，供显示估计值；NA和RV1为0。 */
+    uint8_t angle_present;  /* 数值 0 是有效方位，NA 时此位为 0。 */
+    uint8_t position_present; /* X/Y 均有数值，可为未验证估计。 */
+    uint8_t inside_valid, object_inside; /* 入仓判断独立于测距有效位。 */
 } VSP_Object;
 
 /* 一路相机的一次观测，程序只遍历count个objects条目。 */
@@ -53,7 +58,7 @@ typedef struct {
 } VSP_Channel;
 
 typedef struct {
-    char line[VSP_MAX_LINE + 1u]; /* 暂存一行，额外1字节供C字符串结束标记使用。 */
+    char line[VSP_MAX_LINE + 2u]; /* 可暂存行末 CR 和字符串结束符。 */
     uint32_t line_started_ms; /* First byte arrival; no assumed serial delay. */
     uint16_t length;              /* 已经收到的字节数。 */
     uint8_t dropping;             /* 异常长行丢弃到换行，再恢复接收。 */

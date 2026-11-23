@@ -1,4 +1,5 @@
-# Keil build output
+# Firmware build output
+/build/
 /project/MDK-ARM/project/
 *.o
 *.axf

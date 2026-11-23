@@ -13,8 +13,9 @@ static void tune_command(unsigned id, const char *payload)
 
 int main(void)
 {
-    unsigned before, n, status_packets=0, steer_packets=0, max_status_gap=0;
+    unsigned before, n, offset, status_packets=0, steer_packets=0, max_status_gap=0;
     uint32_t last_status=0;
+    WireFrame reply;
     PID_t local;
     Motor_Init(); tick=1000;
     memset(&local,0,sizeof(local));
@@ -44,36 +45,42 @@ int main(void)
     tune_command(1,"P,25000,5000,1200");
     assert(step==10 && enabled_calls==before && !motor_drive_enabled);
     assert(pid_steer.kp==2.5f && pid_steer.ki==.5f && fabsf(pid_steer.kd-.12f)<.00001f);
-    assert(strstr(wire,"A1,1,0,10*"));
+    expect_ack(1,0,10);
     follow_target(10,5,60,50,1);motor_process();assert(fabsf(pid_steer.output-30)<.001f);
     reset_wire();tune_command(1,"P,25000,5000,1200");
     assert(pid_steer.error_int==10); /* duplicate ACK cannot clear history */
     reset_wire();tune_command(0,"P,0,0,0");assert(pid_steer.kp==2.5f && command_status==0);
-    assert(strstr(wire,"A1,0,4,"));
+    expect_ack(0,4,10);
     reset_wire();command("C1,2,P,10000,-1,0*0000\n");assert(pid_steer.kp==2.5f);
-    reset_wire();faraway_steer_report(tick);drain();
-    assert(strstr(wire,"[\"S1\","));
-    assert(VSP_Crc16((const uint8_t *)wire,(uint16_t)(strchr(wire,'*')-wire))==strtoul(strchr(wire,'*')+1,NULL,16));
-    puts(wire); /* shared with the browser's pure parser test */
+    reset_wire();faraway_report();drain();
+    assert(!wire_find(wire,wire_size,WIRE_STEER,&reply));
     reset_wire();tune_command(2,"T,1");assert(steer_stream);
     before=enabled_calls;tick=steer_stream_tick+6001;faraway_report();drain();
     assert(!steer_stream && enabled_calls==before); /* lease expires without motion */
     reset_wire();tune_command(3,"T,1");assert(steer_stream);
-    for(n=0;n<45;n++) {
-        reset_wire();tick+=50;faraway_report();drain();
-        if(strstr(wire,"[\"V7\",")) {
-            if(last_status && tick-last_status>max_status_gap)max_status_gap=tick-last_status;
-            last_status=tick;++status_packets;
+    for(n=0;n<110;n++) {
+        reset_wire();tick+=20;faraway_report();drain();
+        for (offset=0; wire_next(wire,wire_size,&offset,&reply);) {
+            if (reply.type==WIRE_LIVE) {
+                if(last_status && reply.tick-last_status>max_status_gap)max_status_gap=reply.tick-last_status;
+                last_status=reply.tick;++status_packets;
+            }
+            if (reply.type==WIRE_STEER) {
+                assert(reply.length==45);
+                assert(wire_f32(reply.payload+33)==2.5f && wire_f32(reply.payload+37)==.5f);
+                assert(fabsf(wire_f32(reply.payload+41)-.12f)<.00001f);
+                if (!steer_packets) wire_vector("steer",wire+offset-reply.encoded_size,reply.encoded_size);
+                ++steer_packets;
+            }
         }
-        if(strstr(wire,"[\"S1\","))++steer_packets;
     }
-    assert(status_packets>=5 && steer_packets>=5 && max_status_gap<500);
-    printf("PASS: subscribed S1/status scheduling, %u steering/%u status packets, max status gap %ums; no queued telemetry backlog\n",steer_packets,status_packets,max_status_gap);
+    assert(status_packets>=12 && steer_packets>=5 && max_status_gap<160);
+    printf("PASS: subscribed steering scheduling, %u STEER/%u LIVE, max status gap %u ms\n",steer_packets,status_packets,max_status_gap);
     tune_command(4,"T,0");assert(!steer_stream);
     tune_command(5,"K,4");stopped();assert(pid_steer.kp==2.5f && pid_steer.error_int_max==FLT_MAX);
     field_map_reset(tick);task_goto_start(285,180,50);task_goto(285,180,50);
     assert(pid_steer.kp==2.5f && pid_steer.ki==.5f && pid_steer.error_int_max==FLT_MAX);
     task_emergency_stop();
-    puts("PASS: PID reset preserves configuration; I accumulates once per sample; live CRC gain updates persist across stop/KEY1/goto, do not start motion, deduplicate; optional S1 CRC and lease expiry");
+    puts("PASS: PID reset preserves configuration, I accumulates once per sample, gain updates survive stop/KEY1/goto, no motion on tune, duplicate ACK, close and lease expiry");
     return 0;
 }

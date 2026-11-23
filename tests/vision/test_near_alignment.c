@@ -58,27 +58,27 @@ int main(void)
     cameras(100, 40, 0, 0); task_approach();
     assert(near_align_state == 2 && body_motion.target_forward == 50);
     cameras(100, 40, 0, 1); move();
-    assert(step == 40 && servo_angle == 100 && task_info.held_kind == VISION_GREEN);
+    assert(step == 40 && servo_angle == 120 && task_info.held_kind == VISION_NONE);
     stopped(); /* ROI still takes priority over alignment and chasing. */
 
     /* New map point resets the quota; heading loss does not. */
     task_emergency_stop(); field_map_reset(tick);
-    assert(task_goto_start(285, 100, 50));
-    field_map.robot.yaw = -.5f; task_goto(285, 100, 50);
+    assert(task_goto_start(285, FIELD_START_Y_CM + 20, 50));
+    field_map.robot.yaw = -.5f; task_goto(285, FIELD_START_Y_CM + 20, 50);
     assert(near_align_state == 1 && body_motion.target_forward == 0);
-    field_map.heading_valid = 0; task_goto(285, 100, 50);
+    field_map.heading_valid = 0; task_goto(285, FIELD_START_Y_CM + 20, 50);
     stopped(); assert(near_align_state == 1);
     field_map.heading_valid = 1; field_map.robot.yaw = 0;
-    field_map.robot.tick += 20; task_goto(285, 100, 50);
+    field_map.robot.tick += 20; task_goto(285, FIELD_START_Y_CM + 20, 50);
     assert(near_align_state == 2 && body_motion.target_forward == 50);
     field_map.robot.yaw = -.5f; field_map.robot.tick += 20;
-    task_goto(285, 100, 50);
+    task_goto(285, FIELD_START_Y_CM + 20, 50);
     assert(near_align_state == 2 && body_motion.target_forward == 50);
-    assert(task_goto_start(285, 101, 50) && near_align_state == 0);
-    task_goto(285, 101, 50);
+    assert(task_goto_start(285, FIELD_START_Y_CM + 21, 50) && near_align_state == 0);
+    task_goto(285, FIELD_START_Y_CM + 21, 50);
     assert(near_align_state == 1 && body_motion.target_forward == 0);
     task_emergency_stop(); stopped();
     assert(pid_steer.kp == 3.5f && pid_steer.ki == 0 && pid_steer.kd == 5);
-    puts("PASS: 25cm inclusive/10deg inclusive, pure turn with shared PD, one check per task/point, loss preserves quota, new target resets, +/-1deg deadband, immediate ROI grip and KEY4 stop");
+    puts("PASS: 25cm inclusive/10deg inclusive, pure turn with shared PD, one check per task/point, loss preserves quota, new target resets, +/-1deg deadband, single-frame ROI grip and KEY4 stop");
     return 0;
 }

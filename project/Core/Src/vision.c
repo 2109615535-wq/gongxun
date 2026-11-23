@@ -2,8 +2,9 @@
 #include "vision_simple.h"
 #include <string.h>
 #include "decode_move.h"
+#include "hui_ku.h"
 
-/* RV2 parser: codex/uart6-vision-oled ab6c6fe. No task/ACK/global ready. */
+/* RV3/RV4 observations over USART6. */
 #define RX_SIZE 2048U
 #define RX_MASK (RX_SIZE - 1U)
 extern UART_HandleTypeDef huart6;
@@ -50,6 +51,13 @@ static void update_camera(VSP_Source source, VisionObservation *out, uint32_t no
         object->angle_present = input->angle_present;
         object->angle_valid = input->angle_valid;
         object->in_roi = input->in_roi;
+        object->in_safety_zone = input->in_safety_zone;
+        object->x_mm = input->x_mm;
+        object->y_mm = input->y_mm;
+        object->position_present = input->position_present;
+        object->zone_kind = convert_kind(input->zone_kind);
+        object->inside_valid = input->inside_valid;
+        object->object_inside = input->object_inside;
     }
 }
 
@@ -62,9 +70,9 @@ bool vision_init(void)
     VSP_Init(&receiver);
     rx_head = rx_tail = 0;
     rx_fault = seen_packet = 0;
-    vision.danger_flag = 1; /* RV2 supplies no global safety decision. */
+    vision.danger_flag = 1; /* RV3/RV4 supply per-object results. */
     vision.upper.age_ms = vision.lower.age_ms = UINT32_MAX;
-    strcpy(vision.fault_code, "waiting_rv2");
+    strcpy(vision.fault_code, "waiting_rv3");
     opened = 1;
     __HAL_UART_CLEAR_OREFLAG(&huart6);
     if (HAL_UART_Receive_IT(&huart6, &rx_byte, 1) != HAL_OK) {
@@ -77,7 +85,7 @@ bool vision_init(void)
 bool vision_set_task(const VisionTask *task)
 {
     (void)task;
-    return false; /* Unsupported by RV2; never claim a task was sent. */
+    return false; /* RV3/RV4 send observations only. */
 }
 void vision_set_yaw(float degrees, bool valid) { (void)degrees; (void)valid; }
 void vision_uart_tx_complete(UART_HandleTypeDef *huart) { (void)huart; }
@@ -107,7 +115,9 @@ void vision_process(void)
     if (!opened) return;
     while (budget--) {
         uint32_t irq = __get_PRIMASK(), time = 0, errors;
-        uint8_t byte = 0, have_byte, fault, complete;
+        uint8_t byte = 0, have_byte, fault, complete, return_observer;
+        uint32_t upper_frame = 0, upper_received = 0;
+        uint8_t upper_seen = 0, upper_status = 0;
         __disable_irq();
         fault = rx_fault;
         if (fault) {
@@ -138,14 +148,29 @@ void vision_process(void)
         if (!have_byte) break;
         complete = byte == '\n' && !receiver.dropping && receiver.length > 0;
         errors = receiver.format_errors;
+        return_observer = complete && hui_ku_controls();
+        if (return_observer) {
+            const VSP_Channel *upper = &receiver.cameras[VSP_UPPER];
+            upper_frame = upper->observation.frame_id;
+            upper_received = upper->received_ms;
+            upper_seen = upper->seen_frame;
+            upper_status = (uint8_t)upper->observation.status;
+        }
         VSP_Feed(&receiver, byte, time);
         if (receiver.format_errors != errors) strcpy(vision.fault_code, "invalid_packet");
         else if (complete) {
             ++vision.rx_packets; seen_packet = 1; last_packet_ms = time;
-            strcpy(vision.fault_code, "rv2_observation");
+            strcpy(vision.fault_code, "rv3_observation");
             /* Process each received observation, including multiple lines in one
              * queue drain. Otherwise an intervening outside frame could be lost. */
+            const VSP_Channel *upper = &receiver.cameras[VSP_UPPER];
             vision.connected = 1;
+            if (return_observer && (upper_frame != upper->observation.frame_id ||
+                upper_received != upper->received_ms || upper_seen != upper->seen_frame ||
+                upper_status != (uint8_t)upper->observation.status)) {
+                update_camera(VSP_UPPER, &vision.upper, HAL_GetTick());
+                hui_ku_observe_upper();
+            }
             update_camera(VSP_LOWER, &vision.lower, HAL_GetTick());
             task_observe_lower();
         }
@@ -163,6 +188,6 @@ void vision_process(void)
     }
     task_observe_lower();
     if (seen_packet && !vision.connected) strcpy(vision.fault_code, "vision_timeout");
-    else if (!strcmp(vision.fault_code, "rv2_observation") && !vision.upper.fresh)
+    else if (!strcmp(vision.fault_code, "rv3_observation") && !vision.upper.fresh)
         strcpy(vision.fault_code, "upper_unavailable");
 }

@@ -58,6 +58,14 @@ static int optional_number(const char *text, int32_t *value) {
     return 1;
 }
 
+static int coordinate(const char *text, int32_t *value) {
+    uint32_t n;
+    int negative = *text == '-';
+    if (!number(text + negative, 65535u, &n)) return 0;
+    *value = negative ? -(int32_t)n : (int32_t)n;
+    return 1;
+}
+
 static int hex_digit(char c) {
     /* 把CRC中的一个十六进制字符转换为0～15的整数，非法字符返回-1。 */
     if (c >= '0' && c <= '9') return c - '0';
@@ -102,10 +110,32 @@ static int lookup(const char *value, const char *const *list, unsigned count) {
     return -1;
 }
 
+static int parse_zone_entry(char *const *fields, VSP_Object *obj) {
+    uint32_t valid, inside;
+    int zone;
+    if (!number(fields[1], 1u, &valid) || !number(fields[2], 1u, &inside)) return 0;
+    if (inside && !valid) return 0;
+    if (!strcmp(fields[0], "NA")) return !valid;
+    zone = lookup(fields[0], names, sizeof(names) / sizeof(names[0])) + 1;
+    switch (zone) {
+        case VSP_RED_MATERIAL_ZONE: case VSP_BLUE_MATERIAL_ZONE:
+            if (obj->kind != VSP_GREEN && obj->kind != VSP_BLACK) return 0;
+            break;
+        case VSP_RED_CASUALTY_ZONE: case VSP_BLUE_CASUALTY_ZONE:
+            if (obj->kind != VSP_ORANGE) return 0;
+            break;
+        default: return 0;
+    }
+    obj->zone_kind = (VSP_Kind)zone;
+    obj->inside_valid = (uint8_t)valid;
+    obj->object_inside = (uint8_t)inside;
+    return 1;
+}
+
 static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
     /* source和o是输出参数，校验全部通过后，调用方才会保存解析结果。 */
     char *star = strchr(line, '*');
-    char *tokens[6u + 5u * VSP_MAX_OBJECTS];
+    char *tokens[6u + 11u * VSP_MAX_OBJECTS];
     char *p;
     unsigned count = 0, i, item_fields;
     uint16_t checksum = 0;
@@ -131,8 +161,8 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
     }
     /* 前6项依次为协议标识、相机来源、图像编号、年龄、状态和物体数。 */
     if (count < 6) return 0;
-    if (!strcmp(tokens[0], "RV1")) item_fields = 4u;
-    else if (!strcmp(tokens[0], "RV2")) item_fields = 5u;
+    if (!strcmp(tokens[0], "RV3")) item_fields = 10u;
+    else if (!strcmp(tokens[0], "RV4")) item_fields = 11u;
     else return 0;
     if (!strcmp(tokens[1], "upper")) *source = VSP_UPPER;
     else if (!strcmp(tokens[1], "lower")) *source = VSP_LOWER;
@@ -147,7 +177,6 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
         if (o->age_ms < 0 || o->age_ms > (int32_t)VSP_TIMEOUT_MS) return 0;
         if ((o->status == VSP_OK) != (o->count > 0)) return 0;
     } else if (o->count) return 0;
-    /* RV1每物体4项，RV2追加第5项angle；严格按标识校验字段数。 */
     for (i = 0; i < o->count; ++i) {
         unsigned offset = 6u + i * item_fields;
         VSP_Object *obj = &o->objects[i];
@@ -158,13 +187,22 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
         obj->distance_valid = (uint8_t)n;
         if (!number(tokens[offset+3], 1u, &n)) return 0;
         obj->in_roi = (uint8_t)n;
-        if (item_fields == 5u) {
-            uint8_t present;
-            if (!angle_number(tokens[offset+4], &obj->angle, &present)) return 0;
-            obj->angle_present = present;
-            obj->angle_valid = (uint8_t)(present && obj->distance_valid);
+        if (*source == VSP_UPPER && obj->in_roi) return 0;
+        if (!angle_number(tokens[offset+4], &obj->angle, &obj->angle_present)) return 0;
+
+        if (strcmp(tokens[offset+5], "NA") || strcmp(tokens[offset+6], "NA")) {
+            if (!coordinate(tokens[offset+5], &obj->x_mm) ||
+                !coordinate(tokens[offset+6], &obj->y_mm)) return 0;
+            obj->position_present = 1;
         }
-        if ((obj->distance_valid && obj->distance_mm < 0) || (*source == VSP_UPPER && obj->in_roi)) return 0;
+        if (obj->distance_valid &&
+            (obj->distance_mm < 0 || !obj->angle_present || !obj->position_present)) return 0;
+        obj->angle_valid = obj->distance_valid;
+        if (!parse_zone_entry(&tokens[offset+7], obj)) return 0;
+        if (item_fields == 11u) {
+            if (!number(tokens[offset+10], 1u, &n) || (n && obj->kind > VSP_BLACK)) return 0;
+            obj->in_safety_zone = (uint8_t)n;
+        }
     }
     return 1;
 }
@@ -254,6 +292,8 @@ uint8_t VSP_Get(const VSP_Receiver *r, VSP_Source source, uint32_t now, VSP_Obse
         for (i = 0; i < output->count; ++i) {
             output->objects[i].distance_valid = 0;
             output->objects[i].angle_valid = 0;
+            output->objects[i].inside_valid = 0;
+            output->objects[i].object_inside = 0;
         }
     }
     return 1;

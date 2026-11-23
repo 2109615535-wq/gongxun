@@ -1,6 +1,7 @@
 #include "key.h"
 #include "servo.h"
 #include "decode_move.h"
+#include "hui_ku.h"
 
 static uint8_t key_sample;
 static uint8_t key_state;
@@ -39,18 +40,36 @@ void Key_Update(void)
     key_sample = sample;
 }
 
+static uint8_t key_dispatch(uint8_t keys, uint8_t source)
+{
+    if (keys & KEY_4) {
+        task_emergency_stop();
+        if (keys & KEY_2) task_start_hui_ku(source, HUI_START_KEY4_HELD);
+        hui_ku_end(source);
+        return 0;
+    }
+    if (Key_Read() & KEY_4) {
+        if (keys & KEY_2) task_start_hui_ku(source, HUI_START_KEY4_HELD);
+        return HUI_START_KEY4_HELD;
+    }
+    if (keys & KEY_1) {
+        if (hui_ku_controls()) return HUI_START_BUSY;
+        task_start();
+        return 0;
+    }
+    if (keys & KEY_2) return task_start_hui_ku(source, HUI_START_OK);
+    return 1; /* KEY3 remains unbound. */
+}
+
 uint8_t Key_Press(uint8_t keys)
 {
-    if (keys & KEY_4) { task_emergency_stop(); return 0; }
-    if (Key_Read() & KEY_4) return 2;
-    if (keys & KEY_1) { task_start(); return 0; }
-    return 1; /* KEY2/3 are intentionally unbound on the hardware too. */
+    return key_dispatch(keys, HUI_KEY_REMOTE);
 }
 static void key_run(void)
 {
-    /* Stop wins if both buttons are pressed. KEY2/3 cannot override the task. */
-    if (key_state & KEY_4) Key_Press(KEY_4);
-    else if (key_down) Key_Press(key_down);
+    /* Stop wins regardless of the other debounced edges. */
+    if (key_state & KEY_4) key_dispatch(KEY_4 | (key_down & KEY_2), HUI_KEY_PHYSICAL);
+    else if (key_down) key_dispatch(key_down, HUI_KEY_PHYSICAL);
     key_down = 0U;
 }
 

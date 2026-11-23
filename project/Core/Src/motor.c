@@ -218,6 +218,19 @@ void Motor_Init(void)
     /* Remain disabled until an explicitly started task commands motion. */
 }
 
+uint8_t Motor_DriveEnabled(void)
+{
+    return motor_drive_enabled;
+}
+
+void Motor_GetWheelTargets(int16_t targets[4])
+{
+    targets[0] = motor_drive_enabled && !motor_pwm_mode ? (int16_t)pid_motor1.target : 0;
+    targets[1] = motor_drive_enabled && !motor_pwm_mode ? (int16_t)pid_motor2.target : 0;
+    targets[2] = motor_drive_enabled && !motor_pwm_mode ? (int16_t)pid_motor3.target : 0;
+    targets[3] = motor_drive_enabled && !motor_pwm_mode ? (int16_t)pid_motor4.target : 0;
+}
+
 void motor_process(void)
 {
     uint32_t now = HAL_GetTick();

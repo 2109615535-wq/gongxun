@@ -95,6 +95,18 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+static void move_with_telemetry(void)
+{
+    move();
+    faraway_task_observe();
+}
+
+static void key_with_telemetry(void)
+{
+    Key_Update();
+    faraway_task_observe();
+}
+
 extern PID_t pid_motor1;
 
 static void motor_oled_task(void)
@@ -153,7 +165,7 @@ int main(void)
     MX_USART6_UART_Init();
     /* USER CODE BEGIN 2 */
     scheduler_init();
-    scheduler_add_task(Key_Update, 10U, 1U);
+    scheduler_add_task(key_with_telemetry, 10U, 1U);
 
     Motor_Init();
     Servo_Init();
@@ -183,15 +195,15 @@ int main(void)
     if (!faraway_init()) {
         Error_Handler();
     }
-    scheduler_add_task(faraway_process, 5U, 2U);
-    scheduler_add_task(faraway_report, 50U, 3U);
+    scheduler_add_task(faraway_process, 1U, 2U);
+    scheduler_add_task(faraway_report, 5U, 3U);
 
     if (!vision_init() || !scheduler_add_task(vision_process, 5U, 1U)) {
         Error_Handler();
     }
 
     scheduler_add_task(field_map_process, 5U, 2U); /* Independent map memory. */
-    scheduler_add_task(move, 20U, 3U);
+    scheduler_add_task(move_with_telemetry, 20U, 3U);
     
 
     /* USER CODE END 2 */

@@ -3,6 +3,9 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 const html=fs.readFileSync(path.join(__dirname,'../../tools/vision_xy.html'),'utf8');
 const sandbox={module:{exports:{}}};vm.createContext(sandbox);vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],sandbox);
 const V=sandbox.module.exports,plain=v=>JSON.parse(JSON.stringify(v));
+if(process.argv[2]==='--bandwidth') {
+  checkBandwidth(process.argv[3],process.argv[4]);
+} else {
 const close=(a,b)=>assert(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 const config={kind:1,x:0,y:50,seconds:20,reference:'wheel-centre ground projection -> visible contact edge'};
 function packet(frame,tick=frame*150,objects=[[1,600,200,0]],age=50){
@@ -56,3 +59,82 @@ const incomplete=new V.ErrorSampling();incomplete.start(config,0,packet(1));inco
 restored.restore(plain(incomplete.dataset()));assert(!restored.active);assert(restored.groups[0].status.includes('未完成'));
 incomplete.stop();assert(!incomplete.accept(packet(3),1400));
 console.log('PASS: raw V7 estimates, new-frame-only sampling, ambiguity/missing/stale rejection, exact 400 ms boundary, unbiased sample SD, bias/RMSE/percentiles/cross-covariance, angle wrap, MCU/frame reset and wrap, task movement stop, incomplete cache restoration, CSV export');
+}
+
+function checkBandwidth(samplesPath,encodedPath){
+    const samples = fs.readFileSync(samplesPath, 'utf8').trim().split(/\r?\n/).map(s => JSON.parse(s));
+    const encoded = fs.readFileSync(encodedPath, 'utf8').trim().split(/\r?\n/);
+    const select = (object, keys) => Object.fromEntries(keys.map(key => [key, object[key]]));
+    let next = 0;
+    let v8 = 0;
+    let m1 = 0;
+    let objects = 0;
+    let lowerObjects = 0;
+    let historicalPoints = 0;
+
+    function packet(type, tick){
+        const wire = Buffer.from(encoded[next++], 'hex');
+        const value = plain(V.decodeBinary(wire));
+        assert.equal(value.type, type);
+        assert.equal(value.tick, tick);
+        assert.equal(value.wire_bytes, wire.length);
+        return value.data;
+    }
+
+    for (const raw of samples){
+        if (raw.startsWith('["M1",')){
+            const old = plain(V.parseMemory(raw));
+            if (old.track){
+                const history = packet(4, old.tick);
+                assert.deepEqual(history, select(old,['epoch','revision','count','unmapped','track']));
+                historicalPoints += old.track.history.length;
+            } else {
+                const empty = packet(11, old.tick);
+                assert.equal(empty.phase, 2);
+                assert.equal(empty.total, 0);
+                assert.equal(empty.epoch, old.epoch);
+            }
+            ++m1;
+            continue;
+        }
+        const old = plain(V.parse(raw));
+        const legacy = JSON.parse(raw.slice(0, raw.lastIndexOf('*')));
+        const live = packet(1, old.tick);
+        const info = packet(5, old.tick);
+        const control = packet(9, old.tick);
+        const diagnostics = packet(6, old.tick);
+        assert.deepEqual(select(live,['link','fault','source','mission','imu','grip','frame','age_ms',
+                                     'status','fresh','available','count']),
+                         select(old,['link','fault','source','mission','imu','grip','frame','age_ms',
+                                     'status','fresh','available','count']));
+        assert.deepEqual(select(live.field,['robot','aligned','observed','points']),
+                         select(old.field,['robot','aligned','observed','points']));
+        assert.deepEqual(select(info,['origin','extrinsic']),select(old.field,['origin','extrinsic']));
+        assert.deepEqual(select(diagnostics,['rx','bad','uart_errors','drops']),
+                         select(old,['rx','bad','uart_errors','drops']));
+        assert.deepEqual(select(control,['id','status']),select(old.control,['id','status']));
+        if (old.control.target){
+            assert.deepEqual(select(control.target,['x','y']),select(old.control.target,['x','y']));
+            assert(Math.abs(control.target.speed-old.control.target.speed) < 1e-4);
+        } else assert.equal(control.target,null);
+        assert.equal(live.objects.length,old.objects.length);
+        for (let i=0; i<old.objects.length; ++i){
+            const current = live.objects[i];
+            const rawTarget = legacy[12][i];
+            const fields = ['id','kind','d_mm','angle','angle_present','valid','track_id','x_cm','y_cm'];
+            assert.deepEqual(select(current,fields),select(old.objects[i],fields));
+            assert.equal(current.position_present, rawTarget.length===6);
+            assert.equal(current.xy_derived, rawTarget.length===4 && rawTarget[1]>=0 && rawTarget[2]!==null);
+            assert.equal(current.raw_x_mm, rawTarget[4]??null);
+            assert.equal(current.raw_y_mm, rawTarget[5]??null);
+        }
+        assert.deepEqual(select(live.lower,['frame','age_ms','status','fresh','objects']),old.lower);
+        objects += old.objects.length;
+        lowerObjects += old.lower.objects.length;
+        ++v8;
+    }
+
+    assert.equal(next,encoded.length);
+    console.log(JSON.stringify({v8_samples:v8,m1_samples:m1,upper_targets:objects,
+                                lower_targets:lowerObjects,history_samples:historicalPoints}));
+}

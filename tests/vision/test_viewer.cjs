@@ -8,7 +8,7 @@ const p=V.parse(raw);
 assert.equal(p.type,'vision_xy');assert.equal(p.count,3);
 let d=V.derive(p,0,0,true);
 assert.equal(d.points.length,2);assert.equal(d.rows.length,3);
-assert.equal(d.points[0].x_cm,25);assert.equal(d.points[1].x_cm,-25);
+assert.equal(d.points[0].x_cm,25.1);assert.equal(d.points[1].x_cm,-25);
 assert(!d.points[0].control);assert(!d.rows[2].plottable);
 assert.equal(V.derive(p,361,0,true).points.length,0);
 assert.equal(V.derive(p,0,361,true).points.length,0);
@@ -29,14 +29,14 @@ assert(Math.abs((right.x-zero.x)-(zero.y-forward.y))<1e-8);
 assert(source.includes('getWriter('));
 console.log('PASS: actual C telemetry -> browser parser, XY axis orientation/equal scale, estimates, unknown coordinates, expiry, split/merged/oversize lines, bidirectional control page');
 
-const rv2=JSON.parse(JSON.stringify(p));rv2.protocol='vision_simple_v2';rv2.ack=rv2.ready=0;rv2.danger=1;rv2.available=1;rv2.objects[0].valid=1;
-assert.equal(V.derive(rv2,0,0,true).points.length,2);
-assert(V.derive(rv2,0,0,true).points[0].control);
-rv2.protocol='rescue_json_v2';assert.equal(V.derive(rv2,0,0,true).points.length,0);
-rv2.protocol='unknown';assert.throws(()=>V.parse(JSON.stringify(rv2)));
-console.log('PASS: RV2 displays without fake ACK/ready; JSON still requires ACK; unknown protocol rejected');
+const rv3=JSON.parse(JSON.stringify(p));rv3.protocol='vision_simple_v3';rv3.ack=rv3.ready=0;rv3.danger=1;rv3.available=1;rv3.objects[0].valid=1;
+assert.equal(V.derive(rv3,0,0,true).points.length,2);
+assert(V.derive(rv3,0,0,true).points[0].control);
+rv3.protocol='rescue_json_v2';assert.equal(V.derive(rv3,0,0,true).points.length,0);
+rv3.protocol='unknown';assert.throws(()=>V.parse(JSON.stringify(rv3)));
+console.log('PASS: RV3 displays without fake ACK/ready; JSON still requires ACK; unknown protocol rejected');
 
-assert.equal(p.wire_version,7);
+assert.equal(p.wire_version,8);
 assert(p.control && p.control.id===null && p.control.target===null);
 assert.equal(V.crc16('123456789'),0x29b1);
 assert.throws(()=>V.parse(raw.slice(0,80)+raw.slice(100)),/CRC/);
@@ -44,11 +44,13 @@ assert.throws(()=>V.parse(raw.replace('500','501')),/CRC/);
 assert.throws(()=>V.parse(raw.slice(0,raw.lastIndexOf('*'))),/CRC/);
 function framed(o){const s=JSON.stringify(o);return s+'*'+V.crc16(s).toString(16).padStart(4,'0');}
 const actualArray=JSON.parse(raw.slice(0,raw.lastIndexOf('*')));
-assert.equal(actualArray.length,19);assert.equal(actualArray[0],'V7');
+assert.equal(actualArray.length,19);assert.equal(actualArray[0],'V8');
 const nav=JSON.parse(JSON.stringify(actualArray));nav[15][0]=50;nav[17]=[123,0,2000,1800,50];
 assert.equal(V.parse(framed(nav)).control.target.x,200);
 nav[17][2]=3001;assert.throws(()=>V.parse(framed(nav)));
 const array=actualArray.slice(0,17);array[0]='V5';
+array[12]=array[12].map(o=>o.slice(0,4));
+array[14]=[...array[14].slice(0,4),array[14][4].map(o=>o.slice(0,2))];
 assert.equal(array.length,17);assert.equal(array[0],'V5');
 const compact={type:'vision_xy',version:2,t:array[1],l:array[2],r:array[3],b:array[4],u:array[5],d:array[6],f:array[7],a:array[8],s:array[9],v:array[10],q:array[11],o:array[12],g:array[13],n:array[14],m:array[15]};
 const invalid=JSON.parse(JSON.stringify(compact));invalid.o[0][2]=19000;assert.throws(()=>V.parse(framed(invalid)));
@@ -101,7 +103,13 @@ assert.equal(V.derive(measured,21,35,true).age,274);
 splitter.push('whole\n',200);assert.equal(timed[1][1],0);
 console.log('PASS: measured assembly only, no artificial margin, repeated age calculations do not accumulate');
 
-assert.equal(p.grip,100);assert.equal(p.lower.objects.length,2);assert.equal(p.lower.objects[0].in_roi,1);
+assert.equal(p.grip,120);assert.equal(p.lower.objects.length,2);assert.equal(p.lower.objects[0].in_roi,1);
+assert.equal(p.lower.objects[0].zone_kind,6);assert.equal(p.lower.objects[0].object_inside,1);
+assert.equal(V.deriveLower(p,109,0,true).rows[0].object_inside,1);
+assert.equal(V.deriveLower(p,110,0,true).rows[0].object_inside,undefined);
+for(const mutate of [a=>a[12][0][4]=-65536,a=>a[14][4][0][2]=4,a=>a[14][4][0][3]=2]){
+ const a=JSON.parse(JSON.stringify(actualArray));mutate(a);assert.throws(()=>V.parse(framed(a)));
+}
 assert.equal(V.deriveLower(p,0,0,true).roi,1);
 assert(V.deriveLower({...p,fresh:0,objects:[],count:0},0,0,true).fresh);
 assert(V.deriveLower({...p,lower:{...p.lower,age_ms:400}},0,0,true).fresh);
@@ -116,7 +124,11 @@ for(const change of [q=>q.n[4][0][1]=2,q=>q.g=140,q=>q.n[3]=0,q=>q.n[4].push([9,
 console.log('PASS: actual lower telemetry, ROI independent of upper, 400/401ms expiry, disconnect, legacy telemetry and invalid fields');
 
 const legacy=V.parse(framed(compact));assert.equal(legacy.wire_version,2);
-const legacyExpected=JSON.parse(JSON.stringify({...p,field:null,control:null,imu:null,wire_version:2}));legacyExpected.objects.forEach(o=>delete o.track_id);assert.deepEqual(legacyExpected,legacy);
+const legacyExpected=JSON.parse(JSON.stringify({...p,field:null,control:null,imu:null,wire_version:2,protocol:'vision_simple_v2',fault:'rv2_observation'}));
+legacyExpected.objects.forEach(o=>delete o.track_id);
+Object.assign(legacyExpected.objects[0],{x_cm:25,y_cm:43.3});
+delete legacyExpected.lower.objects[0].zone_kind;delete legacyExpected.lower.objects[0].object_inside;
+assert.deepEqual(legacyExpected,legacy);
 assert.equal(V.parse(framed(['V3',...array.slice(1,15)])).mission,null);
 assert.throws(()=>V.parse(framed([...array,0])));
 const corrupted=[...array];corrupted[14]=null;assert.throws(()=>V.parse(framed(corrupted)));
@@ -125,7 +137,7 @@ console.log('PASS: V3 preserves all V2 fields and rejects malformed arrays; samp
 assert.equal(p.test,0);assert.equal(p.mission.step,0);
 const active=[...array];active[15]=[30,3,2,0];
 assert.deepEqual(JSON.parse(JSON.stringify(V.parse(framed(active)).mission)),{step:30,reason:3,inside:2,outside:0,held_kind:null});
-for(const m of [[2,0,0,0],[30,18,0,0],[30,0,4,0],[30,0,0]]){const q=[...array];q[15]=m;assert.throws(()=>V.parse(framed(q)));}
+for(const m of [[2,0,0,0],[30,25,0,0],[30,0,4,0],[30,0,0]]){const q=[...array];q[15]=m;assert.throws(()=>V.parse(framed(q)));}
 console.log('PASS: task firmware/state/reason/ROI confirmation telemetry, no false stationary flag');
 
 for(const reason of [16,17]) {const q=[...array];q[15]=[30,reason,0,0];assert.equal(V.parse(framed(q)).mission.reason,reason);}
@@ -135,8 +147,12 @@ for(const held of [0,1,2,3]) {const q=[...array];q[15]=[99,0,0,3,held];assert.eq
 for(const held of [-1,10,1.5,null]) {const q=[...array];q[15]=[99,0,0,3,held];assert.throws(()=>V.parse(framed(q)));}
 console.log('PASS: held cargo survives ROI=0 in telemetry; old task frames retain unknown cargo, malformed cargo rejected');
 
-assert(p.field.aligned);assert.equal(p.field.robot.x,285);assert.equal(p.field.robot.y,85);
-assert.equal(p.field.observed.y,83);assert.equal(p.field.points[0].x,310);assert.equal(p.field.points[2],null);
+assert(p.field.aligned);assert.equal(p.field.robot.x,285);assert.equal(p.field.origin.y,69.5);assert.equal(p.field.robot.y,p.field.origin.y+5);
+assert.equal(p.field.observed.y,p.field.origin.y+3);assert.equal(p.field.points[0].x,310.1);assert.equal(p.field.points[2],null);
+assert.equal(p.field.extrinsic.y,0); // Actual firmware V8 payload, decoded in cm.
+const expectedFieldY=p.field.observed.y+p.objects[0].y_cm;
+assert(Math.abs(p.field.points[0].y-expectedFieldY)<=0.100001); // Integer mm on the wire.
+console.log('PASS: firmware V8 reports extrinsic.y=0 and projects the unshifted raw observation');
 for(const mutate of [a=>a[16][1]=0,a=>a[16][2]=null,a=>a[16][3].pop(),a=>a[16][0][0]=NaN]){const a=JSON.parse(JSON.stringify(array));mutate(a);assert.throws(()=>V.parse(framed(a)));}
 const fh=new V.FieldHistory();fh.accept(p,1000,20);
 let fd=fh.display(p,1340,340,true);assert(!fd.points[0].historical);
@@ -149,13 +165,26 @@ fh.accept({...p,tick:p.tick+3,status:1},3010,0);assert.equal(fh.entry,null);
 fh.clear();assert.equal(fh.trail.length,0);
 console.log('PASS: actual MCU field coordinates, aligned pose, unknowns, malformed map rejection, fixed historical coordinates, 400ms expiry, no duplicate refresh, clear/reset');
 
-assert.equal(p.field.points[0].track_id,1);assert.equal(p.field.points[1].track_id,2);assert.equal(p.objects[0].track_id,1);assert.equal(p.field.points[0].radius,6.5);
+assert.equal(p.field.points[0].track_id,0);assert.equal(p.field.points[1].track_id,0);assert.equal(p.objects[0].track_id,0);assert.equal(p.field.points[0].radius,6.5);
 assert.equal(V.targetStyle(1).fill,'#59dc82');assert.equal(V.targetStyle(2).fill,'#111111');assert.equal(V.targetStyle(3).fill,'#ff9b47');assert.equal(V.targetStyle(4).fill,'#69cfff');assert.notEqual(V.targetStyle(2).fill,V.targetStyle(2).stroke);
-assert.equal(V.targetLabel(p.field.points[0]),'#1');assert.equal(V.targetLabel({id:2}),'序2');
+assert.equal(V.targetLabel({id:1,track_id:1}),'#1');assert.equal(V.targetLabel(p.field.points[0]),'序1');
 const v4=JSON.parse(JSON.stringify(array));v4[0]='V4';v4[16][3]=v4[16][3].map(v=>v?v.slice(0,2):null);
 const oldMap=V.parse(framed(v4));assert.equal(oldMap.wire_version,4);assert.equal(oldMap.field.points[0].radius,null);assert.equal(oldMap.field.points[0].track_id,0);
-for(const mutate of [a=>a[16][3][0][2]=-1,a=>a[16][3][0][3]=-1,a=>a[16][3][1][2]=a[16][3][0][2],a=>a[16][3][0].pop()]){const a=JSON.parse(JSON.stringify(array));mutate(a);assert.throws(()=>V.parse(framed(a)));}
-console.log('PASS: V5 fixed IDs/radii round-trip, category colours and black outline, unknown labels, invalid/duplicate IDs rejected, old V4 retained');
+for(const mutate of [a=>a[16][3][0][2]=-1,a=>a[16][3][0][3]=-1,a=>{a[16][3][0][2]=1;a[16][3][1][2]=1;},a=>a[16][3][0].pop()]){const a=JSON.parse(JSON.stringify(array));mutate(a);assert.throws(()=>V.parse(framed(a)));}
+console.log('PASS: V8 unconfirmed IDs and measurement radii, category colours and black outline, invalid/duplicate confirmed IDs rejected, old V4 retained');
+
+for (const step of [60,61,62,63,64,65,66,67,68,69,70,71,72,73,74]) {
+ const reason=step===67?18:step===69?20:0;
+ const a=actualArray.slice();a[15]=[step,reason,0,0,step<=64||step===67||step===68||step===70?1:0];
+ const mission=V.parse(framed(a)).mission;
+ assert.equal(mission.step,step);
+ assert.equal(mission.reason,reason);
+}
+for (const reason of [21,22,23,24]) {
+ const a=actualArray.slice();a[15]=[reason===24?71:69,reason,0,0,0];
+ assert.equal(V.parse(framed(a)).mission.reason,reason);
+}
+console.log('PASS: return-material stages, dock interruption, X sample diagnostics and centre-scan states round-trip');
 
 const click=V.fieldClick(230,150);assert.equal(click.x,200);assert.equal(click.y,180);
 assert.equal(V.fieldClick(20,150),null);assert.equal(V.fieldClick(330,30).y,300);
@@ -169,7 +198,35 @@ console.log('PASS: V6 control feedback, click coordinates, command encoding and 
 assert(p.imu.ready && p.imu.heading_valid);assert.equal(p.imu.raw_yaw,25);
 assert(V.imuStatus(p,400,0,true).fresh);assert(!V.imuStatus(p,401,0,true).fresh);
 assert(!V.imuStatus(p,0,401,true).fresh);assert(!V.imuStatus(p,0,0,false).fresh);
-const v6=actualArray.slice(0,18);v6[0]='V6';assert.equal(V.parse(framed(v6)).imu,null);
+const v6=[...array,actualArray[17]];v6[0]='V6';assert.equal(V.parse(framed(v6)).imu,null);
 const unready=JSON.parse(JSON.stringify(actualArray));unready[18]=[0,null,null,0];assert(!V.imuStatus(V.parse(framed(unready)),0,0,true).ready);
 for(const data of [[1,null,0,1],[0,0,0,0],[1,0,36001,1],[1,0,0,2]]){unready[18]=data;assert.throws(()=>V.parse(framed(unready)));}
 console.log('PASS: V7 IMU telemetry, readiness/age/raw yaw, 400ms boundary, disconnect and V6 compatibility');
+
+const taskLog=new V.TaskHistory();
+const report=(tick,step,reason=0)=>taskLog.accept(tick,{step,reason});
+report(100,64);report(250,65);report(250,69); // ignore duplicate timestamp
+report(400,65);report(550,69);report(700,71,24);
+report(850,72,24);report(1000,73);report(1150,74);
+report(1300,30);report(1450,0,1);
+assert.deepEqual(Array.from(taskLog.entries,r=>[r.step,r.elapsedMs,r.result]),[
+ [64,150,'成功'],[65,300,'成功'],[69,150,'失败'],[71,150,'成功'],
+ [72,150,'成功'],[73,150,'失败'],[30,150,'失败']
+]);
+assert(taskLog.csv().includes('"65","后退 50 cm","0.300","成功",""'));
+assert(taskLog.csv().includes('X 校准超时，沿用现有 X'));
+assert(taskLog.csv().includes('KEY4 停止'));
+const missed=new V.TaskHistory();
+missed.accept(1700,{step:68,reason:0});missed.accept(1850,{step:65,reason:0});
+missed.accept(2000,{step:65,reason:0});missed.accept(3200,{step:69,reason:20});
+assert.equal(missed.entries[0].result,'未确认');
+assert.equal(missed.entries[1].elapsedMs,150);
+assert(missed.csv().includes('执行中'));
+missed.disconnect();assert.equal(missed.entries[2].detail,'串口断开');
+const wrapLog=new V.TaskHistory();
+wrapLog.accept(0xffffff00,{step:68,reason:0});wrapLog.accept(0x20,{step:67,reason:6});
+assert.equal(wrapLog.entries[0].elapsedMs,288);
+assert.equal(wrapLog.entries[0].detail,'发现危险物');
+wrapLog.accept(1000,{step:65,reason:0});wrapLog.accept(1,{step:0,reason:0});
+assert.equal(wrapLog.entries[1].detail,'主控计时重置');
+console.log('PASS: browser-only task history CSV, success/failure, X timeout, KEY4, missed steps, disconnect, MCU tick wrap/reset');

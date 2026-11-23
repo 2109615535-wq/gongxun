@@ -358,7 +358,7 @@
             </VariousControls>
           </Aads>
           <LDads>
-            <umfTarg>1</umfTarg>
+            <umfTarg>0</umfTarg>
             <Ropi>0</Ropi>
             <Rwpi>0</Rwpi>
             <noStLib>0</noStLib>
@@ -367,7 +367,7 @@
             <TextAddressRange>0x08000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
-            <ScatterFile></ScatterFile>
+            <ScatterFile>project.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -444,6 +444,11 @@
               <FileName>decode_move.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/decode_move.c</FilePath>
+            </File>
+            <File>
+              <FileName>hui_ku.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/hui_ku.c</FilePath>
             </File>
             <File>
               <FileName>encoder.c</FileName>

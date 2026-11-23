@@ -6,11 +6,11 @@
 /* cm, degrees clockwise from the top of the field. Red circle is approximate.
  * Place the wheel-centre reference here BEFORE resetting/powering the MCU. */
 #define FIELD_START_X_CM 285.0f
-#define FIELD_START_Y_CM 80.0f
+#define FIELD_START_Y_CM 69.5f
 #define FIELD_START_YAW_DEG 0.0f
 
 /* Vision calibration origin relative to wheel centre: right, forward, clockwise.
- * Zero assumes calibration already uses that origin. Do not apply offsets twice. */
+ * This map configuration uses the incoming visual XY with zero extrinsics. */
 #define FIELD_VISION_X_CM 0.0f
 #define FIELD_VISION_Y_CM 0.0f
 #define FIELD_VISION_YAW_DEG 0.0f
@@ -20,17 +20,18 @@ typedef struct { uint32_t tick; float x, y, yaw; } FieldPose; /* yaw radians */
 #define FIELD_MATCH_DISTANCE_SCALE 0.05f
 #define FIELD_TRACK_CAPACITY 48U
 #define FIELD_TRACK_HISTORY 8U
-#define FIELD_JUMP_CONFIRM_FRAMES 3U
+#define FIELD_ASSOCIATION_GATE 5.991464547f /* Squared Mahalanobis distance, 95% in 2D. */
+#define FIELD_MOTION_VARIANCE_PER_CM 0.09f
+#define FIELD_CONFIRM_FRAMES 3U
 typedef struct {
     uint32_t tick;
     float x, y;
-    uint8_t accepted; /* Raw observation; zero means a pending position jump. */
+    uint8_t accepted; /* Raw observation associated with this confirmed ID. */
 } FieldSample;
 typedef struct {
     uint32_t id, seen_ms, position_ms, observations, revision;
-    float x, y, distance;
-    float pending_x, pending_y;
-    uint8_t kind, visible, review, pending_count, history_count, history_next;
+    float x, y, distance, variance; /* KF position and variance of either axis (cm²). */
+    uint8_t kind, visible, review, history_count, history_next; /* review is retained for M1 compatibility. */
     FieldSample history[FIELD_TRACK_HISTORY];
 } FieldTrack;
 typedef struct {
@@ -49,6 +50,11 @@ typedef struct {
 extern FieldMap field_map;
 extern FieldTrack field_tracks[FIELD_TRACK_CAPACITY]; /* Whole-round RAM map. */
 void field_map_reset(uint32_t now);
+void field_map_correct_pose(float x, float y, float yaw); /* Apply a surveyed field pose, cm/rad. */
+/* Continuous position-only correction: retains odometry samples and tracks. */
+void field_map_translate(float dx, float dy);
+int field_map_pose_at(uint32_t tick, FieldPose *out);
+float field_map_travel_cm(void);
 void field_map_gap(void); /* Clear interpolation across an unavailable heading. */
 void field_map_record(uint32_t sample_tick, float odom_x, float odom_y, float odom_yaw);
 void field_map_update(const VisionObservation *observation, uint32_t now);

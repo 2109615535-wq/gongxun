@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "stm32f4xx_hal.h"
 
-/* vision_simple_v2 (RV2), USART6: PC6 TX / PC7 RX, 115200 8N1.
+/* vision_simple_v3/v4 (RV3/RV4), USART6: PC6 TX / PC7 RX, 115200 8N1.
  * Application APIs and result reads belong to the main loop, never an ISR.
  * Results are updated/expired by vision_process() every 5 ms. */
 #define VISION_MAX_OBJECTS 12U
@@ -48,8 +48,13 @@ typedef struct {
     VisionKind kind;
     int32_t distance_mm;
     float angle;
+    int32_t x_mm, y_mm;           /* X 向右、Y 向前，相对视觉标定原点。 */
+    VisionKind zone_kind;        /* 对应安全区，VISION_NONE 表示未知。 */
     uint8_t distance_valid, angle_valid, in_roi;
+    uint8_t in_safety_zone;     /* 安全区抓取保护，独立于夹爪 ROI 和入仓判断。 */
     uint8_t angle_present;        /* Numeric angle, including 0; false for NA. */
+    uint8_t position_present;    /* X/Y 有数值，distance_valid 才表示已验证。 */
+    uint8_t inside_valid, object_inside; /* 视觉入仓结果，独立于距离有效性。 */
 } VisionObject;
 
 typedef enum {
@@ -78,8 +83,7 @@ typedef struct {
     char danger_reason[64];
 } VisionVerification;
 
-/* The current Python implementation only supplies invalid dock/delivery
- * placeholders. Positive validity/success flags are deliberately rejected. */
+/* Reserved task-level results. RV3/RV4 provide entry state per VisionObject. */
 typedef struct {
     uint8_t received, dock_valid, result_valid, danger_flag;
     uint8_t entry_allowed, object_inside, delivery_confirmed;
@@ -98,10 +102,10 @@ typedef struct {
 
 extern VisionResult vision;       /* Read directly; application must not write. */
 
-bool vision_init(void);           /* Start RV2 reception on USART6. */
-bool vision_set_task(const VisionTask *task); /* RV2 unsupported: returns false, sends nothing. */
+bool vision_init(void);           /* Start RV3/RV4 reception on USART6. */
+bool vision_set_task(const VisionTask *task); /* RV3/RV4 are observation-only. */
 void vision_set_yaw(float degrees, bool valid); /* Unknown until explicitly set. */
-void vision_process(void);        /* RX and expiry; RV2 has no outbound heartbeat. */
+void vision_process(void);        /* RX and expiry. */
 
 /* Routed from the project's existing HAL callbacks. */
 void vision_uart_rx_complete(UART_HandleTypeDef *huart);

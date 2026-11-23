@@ -1,0 +1,51 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: 配置 Debug 固件",
+            "type": "process",
+            "command": "${config:cmake.cmakePath}",
+            "args": ["--preset", "Debug"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": [],
+            "hide": true
+        },
+        {
+            "label": "CMake: 构建 Debug 固件",
+            "type": "process",
+            "command": "${config:cmake.cmakePath}",
+            "args": ["--build", "--preset", "Debug"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": ["CMake: 配置 Debug 固件"],
+            "problemMatcher": {
+                "owner": "gongxun1-gcc",
+                "source": "gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"],
+                "pattern": {
+                    "regexp": "^(.*?):(\\d+):(\\d*):?\\s+(?:fatal\\s+)?(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            },
+            "hide": true
+        },
+        {
+            "label": "DAPLink: 编译并下载",
+            "type": "process",
+            "command": "openocd",
+            "windows": {
+                "command": "${env:LOCALAPPDATA}/Programs/OpenOCD/xpack-openocd-0.12.0-7/bin/openocd.exe"
+            },
+            "args": [
+                "-f", ".vscode/openocd-daplink.cfg",
+                "-c", "program_gongxun1 build/Debug/gongxun1.elf"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": ["CMake: 构建 Debug 固件"],
+            "problemMatcher": []
+        }
+    ]
+}
