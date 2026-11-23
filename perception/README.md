@@ -152,7 +152,7 @@ GPIO选择对应USART复用功能，开启接收中断或DMA。复用现有HAL�
 
 ## 5. 双视启动与 UART6 / OLED 联调
 
-板端服务当前使用 `vision_simple_v3`。兼容模式对区内普通、核心和伤员物块隐藏抓取定位和夹爪 ROI 命中，并继续发送类别及入仓结果。危险物块继续参与危险判断。主控更新至支持 RV4 的固件后，可在香橙派选择以下启动参数。
+板端服务使用 `vision_simple_v4`。旧版串口兼容模式对区内普通、核心和伤员物块隐藏抓取定位和夹爪 ROI 命中，并继续发送类别及可用的入仓字段。危险物块继续参与危险判断。
 
 ```bash
 sh tools/run_dual_orangepi.sh --controller-port /dev/ttyS6 --controller-protocol vision_simple_v4
@@ -197,11 +197,11 @@ OLED 联调固件和 systemd 配置示例见 [codex/uart6-vision-oled](https://g
 
 ## 7. 坐标、测距补偿和视觉核验
 
-安全区使用完整检测框的中心，物块使用地面接触点。按现有标定计算 X、Y、径向距离和方位角。截边安全区保留检测框。径向补偿先反解真实距离，再等比例缩放 X、Y。方位角保持原方向。已拟合的真实距离范围为 15～150 cm，实际控制沿用标定区域、位置质量和新鲜度检查。[测距拟合结果](config/dual_calibration/distance_compensation_fit.json)
+任一路相机检出的红蓝物资区和伤员区都随当帧观测上报。视觉取安全区检测框中心，按现有标定和径向补偿计算 X、Y、距离和方位角。超出常规投影范围时沿用地面单应外推，有截边时使用可见框中心。这两类结果通过 `distance_valid=0` 标为估算。无法求得地面位置时，类别随帧发送，坐标与方位填 `NA`、距离填 `-1`。物块的位置取地面接触点。实际控制沿用标定区域、位置质量和新鲜度检查。[测距拟合结果](config/dual_calibration/distance_compensation_fit.json)
 
 目标完整进入同类安全区、同一目标与区域连续三帧成立时，视觉报告 `object_inside`。主控报告松爪并退开后，可在 `delivery_check` 阶段核对锁定物体留在区内、已验证的下视 ROI 为空以及两路观测的新鲜度。执行条件和状态字段见 [TASK_PROTOCOL.md](TASK_PROTOCOL.md)。
 
-RV2 发送距离和方位角。RV3 另带 X/Y、区域类别及入区有效位。RV4 追加安全区抓取过滤位。完整布局见 [SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)。
+RV2 发送距离和方位角。RV3/RV4 同时发送毫米 X/Y，主控可从 `VisionObject.x_mm/y_mm` 读取，并通过 `position_present` 判断坐标是否随帧送达。`distance_valid` 继续反映标定与新鲜度。RV4 另有安全区抓取过滤位。完整布局见 [SIMPLE_PROTOCOL.md](stm32/SIMPLE_PROTOCOL.md)。
 
 ## 8. 数据集录制与离线检查
 

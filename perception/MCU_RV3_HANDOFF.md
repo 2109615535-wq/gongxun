@@ -1,6 +1,8 @@
 # 主控接入 RV3 所需修改
 
-## 本次提交范围
+截至 2026-11-23，STM32 的 `VSP_Object` 和 `VisionObject` 支持直接读取 RV3/RV4 的 `x_mm/y_mm/position_present`。收到估算坐标时 `position_present=1`、`distance_valid=0`。以下保留原始 RV3 交接记录。
+
+## 2026-11-16 提交范围
 
 本次 `main` 提交包含视觉 Python 程序、配置、测试、协议说明及阶段记录，不包含主控 C 代码、主控测试或烧录工具。`perception/stm32/vision_simple.c/.h` 虽位于视觉目录，也是主控代码，因此不纳入此次提交。
 

@@ -288,7 +288,8 @@ class CameraPerception:
         for d in detections:
             inside_grip = bool(roi and roi_coverage(d.box, roi) >= self.cfg["grip_coverage"])
             intersects = bool(roi and roi_coverage(d.box, roi) > 0)
-            occluded = touches_border(d.box, self.calibration.size) or any(
+            clipped = touches_border(d.box, self.calibration.size)
+            occluded = clipped or any(
                 other is not d and other.name in TARGET_TYPES and box_iou(d.box, other.box) > .12
                 for other in detections)
             row = {"name": d.name, "confidence": d.confidence, "box": list(d.box),
@@ -299,12 +300,12 @@ class CameraPerception:
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
             contact = None
             # Zones lie on the ground even when their boxes overlap the gripper ROI.
-            # Use the centre only for a complete zone ROI; materials keep their contact point.
-            if d.name in ZONES and not touches_border(d.box, self.calibration.size):
+            if d.name in ZONES:
                 contact = ((d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2)
-                row["zone_center_px"] = contact
+                if not clipped:
+                    row["zone_center_px"] = contact
             # An object held above the ground must never be projected through ground H.
-            elif d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
+            elif d.name in TARGET_TYPES and not inside_grip and not clipped:
                 overlapping = any(other is not d and other.name in TARGET_TYPES and
                                   box_iou(d.box, other.box) > .12 for other in detections)
                 if not overlapping:
@@ -322,10 +323,12 @@ class CameraPerception:
                     verified = self.calibration.valid and not near
                     if d.name in ZONES:
                         row["position_quality"] = "near_estimate" if near else "zone_roi_center"
-                        row["position_valid"] = verified
+                        if clipped:
+                            row["position_quality"] = "position"
+                        row["position_valid"] = verified and not clipped
                     else:
                         row["position_quality"] = "validated" if verified else "position"
-            if d.name in TARGET_TYPES and row["position_mm"] is None and not inside_grip:
+            if row["position_mm"] is None and (d.name in ZONES or (d.name in TARGET_TYPES and not inside_grip)):
                 if d.name == "normal_material" and contact is None:
                     contact = green_contact(image, d.box, LOWER, UPPER)
                     if contact is None:

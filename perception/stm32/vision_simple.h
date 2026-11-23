@@ -26,6 +26,8 @@ typedef enum {
 typedef struct {
     VSP_Kind kind;          /* 物体类别，用VSP_GREEN等枚举名判断。 */
     int32_t distance_mm;    /* 地面径向距离，单位毫米，-1表示距离未知。 */
+    int32_t x_mm, y_mm;    /* RV3/RV4 地面 X 向右、Y 向前，单位 mm。 */
+    uint8_t position_present; /* 同一帧同时收到 X/Y 时为 1。 */
     uint8_t distance_valid; /* 1表示距离有效，0时数值可能只是未验证估算。 */
     uint8_t in_roi;         /* 1表示在下视夹爪区域内，夹持成功需另外判断。 */
     uint8_t in_safety_zone; /* RV4: 当前帧的安全区抓取过滤位。 */

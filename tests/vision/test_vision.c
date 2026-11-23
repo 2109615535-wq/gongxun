@@ -42,6 +42,7 @@ int main(int argc, char **argv)
     assert(!vision.acknowledged && !vision.vision_ready && !vision.tx_packets);
     assert(vision.upper.count==1 && vision.upper.objects[0].kind==VISION_GREEN);
     assert(vision.upper.objects[0].angle==30 && vision.upper.objects[0].distance_valid);
+    assert(!vision.upper.objects[0].position_present);
     tick=164;vision_process();assert(!vision.upper.objects[0].distance_valid);
     tick=200;feed_wire("RV2,upper,42,86,ok,1,green,450,1,0,30.00*CBDC\n",1);
     assert(vision.ignored_packets==1);
@@ -89,6 +90,8 @@ int main(int argc, char **argv)
         for (i = 0; i < vision.upper.count; ++i) {
             assert(vision.upper.objects[i].kind == (i % 2 ? VISION_BLUE_CASUALTY_ZONE : VISION_GREEN));
             assert(vision.upper.objects[i].in_safety_zone == (i % 2 == 0));
+            assert(vision.upper.objects[i].position_present && !vision.upper.objects[i].distance_valid);
+            assert(vision.upper.objects[i].x_mm == -65535 && vision.upper.objects[i].y_mm == -65535);
         }
     }
     /* UART byte arrival + main-loop queue wait are counted once. */
@@ -135,8 +138,20 @@ int main(int argc, char **argv)
         assert(vision.bad_packets == bad + 4 && vision.lower.frame_id == 102);
         feed_body("RV3,lower,103,0,ok,1,green,-1,0,1,NA,NA,NA,red_material_zone,1,1");
         assert(vision.lower.frame_id == 103 && !vision.lower.objects[0].in_safety_zone);
-        assert(vision.lower.objects[0].in_roi);
+        assert(vision.lower.objects[0].in_roi && !vision.lower.objects[0].position_present);
+        feed_body("RV4,lower,104,0,ok,1,blue_casualty_zone,673,0,0,23.37,267,618,NA,0,0,0");
+        assert(vision.lower.objects[0].kind == VISION_BLUE_CASUALTY_ZONE);
+        assert(vision.lower.objects[0].position_present && !vision.lower.objects[0].distance_valid);
+        assert(vision.lower.objects[0].x_mm == 267 && vision.lower.objects[0].y_mm == 618);
+        feed_body("RV4,lower,105,0,ok,1,blue_casualty_zone,673,0,0,23.37,65536,618,NA,0,0,0");
+        assert(vision.bad_packets == bad + 5 && vision.lower.frame_id == 104);
+        feed_body("RV3,lower,105,0,ok,1,red_material_zone,216,1,0,0.00,0,216,NA,0,0");
+        assert(vision.lower.objects[0].kind == VISION_RED_MATERIAL_ZONE);
+        assert(vision.lower.objects[0].position_present && vision.lower.objects[0].distance_valid);
+        assert(vision.lower.objects[0].x_mm == 0 && vision.lower.objects[0].y_mm == 216);
+        feed_body("RV2,lower,106,0,ok,1,red_material_zone,216,1,0,0.00");
+        assert(vision.lower.objects[0].kind == VISION_RED_MATERIAL_ZONE && !vision.lower.objects[0].position_present);
     }
-    puts("PASS: RV4 safety-zone bit, malformed fields and RV3 compatibility");
+    puts("PASS: RV3/RV4 coordinates, safety-zone bit, malformed fields and RV2 compatibility");
     return 0;
 }

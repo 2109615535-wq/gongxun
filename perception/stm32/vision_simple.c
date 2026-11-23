@@ -102,19 +102,23 @@ static int lookup(const char *value, const char *const *list, unsigned count) {
     return -1;
 }
 
-static int coordinate_token(const char *text) {
+static int coordinate_number(const char *text, int32_t *value) {
     uint32_t magnitude;
-    return !strcmp(text, "NA") || number(text + (*text == '-'), 65535u, &magnitude);
+    int negative = *text == '-';
+    if (!number(text + negative, 65535u, &magnitude)) return 0;
+    *value = negative ? -(int32_t)magnitude : (int32_t)magnitude;
+    return 1;
 }
 
-/* Check the RV3 fields carried by RV3/RV4 even though pickup uses range and bearing. */
-static int extended_fields_valid(char *const *fields, const VSP_Object *obj, uint8_t angle_present) {
+static int parse_extended_fields(char *const *fields, VSP_Object *obj, uint8_t angle_present) {
     int x_present = strcmp(fields[0], "NA") != 0;
     int y_present = strcmp(fields[1], "NA") != 0;
     int zone = lookup(fields[2], names, 8) + 1;
     uint32_t inside_valid, inside;
-    if (!coordinate_token(fields[0]) || !coordinate_token(fields[1]) ||
-        x_present != y_present || (obj->distance_valid && (!x_present || !angle_present))) return 0;
+    if (x_present != y_present || (obj->distance_valid && (!x_present || !angle_present))) return 0;
+    if (x_present && (!coordinate_number(fields[0], &obj->x_mm) ||
+                      !coordinate_number(fields[1], &obj->y_mm))) return 0;
+    obj->position_present = (uint8_t)x_present;
     if (!number(fields[3], 1u, &inside_valid) || !number(fields[4], 1u, &inside) ||
         (inside && !inside_valid)) return 0;
     if (!strcmp(fields[2], "NA")) return !inside_valid;
@@ -187,7 +191,7 @@ static int parse(char *line, VSP_Source *source, VSP_Observation *o) {
             if (!angle_number(tokens[offset+4], &obj->angle, &present)) return 0;
             obj->angle_valid = (uint8_t)(present && obj->distance_valid);
         }
-        if (item_fields >= 10u && !extended_fields_valid(tokens + offset + 5, obj, present)) return 0;
+        if (item_fields >= 10u && !parse_extended_fields(tokens + offset + 5, obj, present)) return 0;
         if (item_fields == 11u) {
             if (!number(tokens[offset+10], 1u, &n) || (n && obj->kind > VSP_BLACK)) return 0;
             obj->in_safety_zone = (uint8_t)n;

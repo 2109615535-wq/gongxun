@@ -26,8 +26,8 @@ TASK = dict(source="controller", contract="rescue_json_v2", session_id="zones",
 
 
 class ZoneCoordinatesTests(unittest.TestCase):
-    def process(self, role, *, names=ZONE_NAMES, valid=True, box=BOX, distortion=None,
-                output_max=None, grip_roi=None):
+    def process(self, role, *, names=ZONE_NAMES[:1], valid=True, box=BOX, distortion=None,
+                output_max=None, grip_roi=None, polygon=None):
         cfg = json.loads((ROOT / "config/dual_camera.json").read_text(encoding="utf-8"))
         # r=20 cm 时原始距离为 r+0.01*r²=24 cm，补偿后应为 200 mm。
         cfg["distance_compensation"] = dict(enabled=True, error_coefficients_cm=[.01, 0., 0.],
@@ -40,7 +40,7 @@ class ZoneCoordinatesTests(unittest.TestCase):
             camera_matrix=[[300., 0., 320.], [0., 300., 240.], [0., 0., 1.]],
             dist_coeffs=[0.] * 5 if distortion is None else distortion,
             ground_homography=[[2., 0., -640.], [0., -2., 1000.], [0., 0., 1.]],
-            valid_pixel_polygon=[[0., 0.], [639., 0.], [639., 479.], [0., 479.]],
+            valid_pixel_polygon=polygon or [[0., 0.], [639., 0.], [639., 479.], [0., 479.]],
             forward_range_mm=[50., 1000.], bumper_forward_mm=0.,
             collection_center_right_mm=0.))
         session = CameraPerception(role, calibration, "validated" if valid else "fit_only", cfg)
@@ -58,8 +58,10 @@ class ZoneCoordinatesTests(unittest.TestCase):
         # ROI 中心 (392,404) 投影为 (144,192)，补偿后为 (120,160)。
         # 底边投影会给出不同距离，因此此断言能识别误用物块贴地点的情况。
         for role in ("upper", "lower"):
-            for row in self.process(role)["detections"]:
-                with self.subTest(role=role, zone=row["name"]):
+            for name in ZONE_NAMES:
+                with self.subTest(role=role, zone=name):
+                    row, = self.process(role, names=(name,))["detections"]
+                    self.assertEqual(row["name"], name)
                     self.assertEqual(row["zone_center_px"], (392., 404.))
                     self.assertEqual(row["position_quality"], "zone_roi_center")
                     self.assertTrue(row["position_valid"])
@@ -74,13 +76,14 @@ class ZoneCoordinatesTests(unittest.TestCase):
         image = np.zeros((480, 640, 3), np.uint8)
         for role in ("upper", "lower"):
             complete = self.process(role, names=ZONE_NAMES[:1], output_max=180.)
-            self.assertIsNone(complete["detections"][0]["position_mm"])
+            self.assertIsNotNone(complete["detections"][0]["position_mm"])
             marked = annotate_frame(image, complete, None)
             self.assertEqual(tuple(marked[404, 392]), (0, 215, 255))
 
             clipped = self.process(role, names=ZONE_NAMES[:1], box=(0., 384., 412., 424.))
             marked = annotate_frame(image, clipped, None)
             self.assertEqual(tuple(marked[404, 206]), (0, 0, 0))
+            self.assertFalse(clipped["detections"][0]["position_valid"])
 
             material = self.process(role, names=("normal_material",))
             marked = annotate_frame(image, material, None)
@@ -100,35 +103,37 @@ class ZoneCoordinatesTests(unittest.TestCase):
             self.assertAlmostEqual(row["position_mm"]["x_right"], 120., places=4)
             self.assertAlmostEqual(row["position_mm"]["y_forward"], 160., places=4)
 
-    def test_rv2_and_json_return_zone_coordinates_through_existing_object_fields(self):
-        snapshot = self.snapshot()
-        for observation in observations_from_snapshot(snapshot):
-            decoded = decode(encode(observation))
-            self.assertEqual([obj.kind for obj in decoded.objects], list(ZONE_NAMES))
-            for obj in decoded.objects:
-                self.assertEqual(obj.distance_mm, 200)
-                self.assertTrue(obj.distance_valid)
-                self.assertEqual(obj.angle, 36.87)
-                angle = math.radians(obj.angle)
-                self.assertAlmostEqual(obj.distance_mm * math.sin(angle), 120., places=2)
-                self.assertAlmostEqual(obj.distance_mm * math.cos(angle), 160., places=2)
-        observations = [m for m in results_from_snapshot(snapshot) if m["msg_type"] == "observation"]
-        self.assertEqual(len(observations), 2)
-        for observation in observations:
-            self.assertEqual([obj["kind"] for obj in observation["objects"]], list(ZONE_NAMES))
-            for obj in observation["objects"]:
-                self.assertEqual((obj["distance_mm"], obj["distance_valid"], obj["angle"]), (200, 1, 36.87))
-        # 中心坐标只用于对准接近，不能据此声称已入库或投放成功。
-        dock = next(m for m in results_from_snapshot(snapshot) if m["msg_type"] == "dock")
-        self.assertEqual(dock["dock_valid"], 0)
+    def test_rv2_rv3_rv4_and_json_return_zone_coordinates(self):
+        for name in ZONE_NAMES:
+            with self.subTest(zone=name):
+                snapshot = self.snapshot(names=(name,))
+                for observation in observations_from_snapshot(snapshot):
+                    obj, = decode(encode(observation)).objects
+                    self.assertEqual((obj.kind, obj.distance_mm, obj.distance_valid, obj.angle), (name, 200, True, 36.87))
+                    angle = math.radians(obj.angle)
+                    self.assertAlmostEqual(obj.distance_mm * math.sin(angle), 120., places=2)
+                    self.assertAlmostEqual(obj.distance_mm * math.cos(angle), 160., places=2)
+                    for version in (3, 4):
+                        obj, = decode(encode(observation, version=version)).objects
+                        self.assertEqual((obj.kind, obj.x_mm, obj.y_mm), (name, 120, 160))
+                messages = results_from_snapshot(snapshot)
+                observations = [m for m in messages if m["msg_type"] == "observation"]
+                self.assertEqual(len(observations), 2)
+                for observation in observations:
+                    obj, = observation["objects"]
+                    self.assertEqual((obj["kind"], obj["distance_mm"], obj["distance_valid"], obj["angle"]),
+                                     (name, 200, 1, 36.87))
+                    self.assertEqual((obj["x_mm"], obj["y_mm"]), (120, 160))
+                dock = next(m for m in messages if m["msg_type"] == "dock")
+                self.assertEqual(dock["dock_valid"], 0)
 
     def test_unverified_calibration_keeps_numeric_coordinates_invalid(self):
         snapshot = self.snapshot(valid=False)
         for observation in observations_from_snapshot(snapshot):
-            for obj in observation.objects:
-                self.assertEqual(obj.distance_mm, 200)
-                self.assertFalse(obj.distance_valid)
-                self.assertEqual(obj.angle, 36.87)
+            obj, = observation.objects
+            self.assertEqual(obj.distance_mm, 200)
+            self.assertFalse(obj.distance_valid)
+            self.assertEqual(obj.angle, 36.87)
 
     def test_orange_blue_and_black_use_box_contact_with_either_calibration_state(self):
         for name, kind in (("casualty", "orange"), ("hazard", "blue"), ("core_material", "black")):
@@ -140,20 +145,34 @@ class ZoneCoordinatesTests(unittest.TestCase):
                         # 框底边中点 (392,423) 投影为 (144,154)，随后执行径向补偿。
                         self.assertEqual((obj.x_mm, obj.y_mm), (122, 131))
 
-    def test_clipped_roi_or_projection_outside_output_range_has_no_coordinate(self):
-        for changes in (dict(box=(0., 384., 412., 424.)), dict(output_max=180.)):
-            for observation in observations_from_snapshot(self.snapshot(**changes)):
+    def test_first_frame_reports_estimated_centers_outside_projection_limits(self):
+        narrow_polygon = [[0., 0.], [350., 0.], [350., 479.], [0., 479.]]
+        for changes in (dict(output_max=180.), dict(polygon=narrow_polygon)):
+            snapshot = self.snapshot(names=("blue_casualty_zone",), **changes)
+            for observation in observations_from_snapshot({"cameras": snapshot["cameras"]}):
                 with self.subTest(changes=changes, role=observation.source):
-                    for obj in observation.objects:
-                        self.assertEqual(obj.distance_mm, -1)
-                        self.assertFalse(obj.distance_valid)
-                        self.assertIsNone(obj.angle)
+                    decoded = decode(encode(observation, version=4))
+                    self.assertEqual(decoded.status, "ok")
+                    obj, = decoded.objects
+                    self.assertEqual((obj.kind, obj.x_mm, obj.y_mm, obj.distance_mm, obj.angle),
+                                     ("blue_casualty_zone", 120, 160, 200, 36.87))
+                    self.assertFalse(obj.distance_valid)
+
+    def test_clipped_roi_sends_its_visible_center_as_an_estimate(self):
+        expected_angle = round(math.degrees(math.atan2(-228., 192.)), 2)
+        snapshot = self.snapshot(box=(0., 384., 412., 424.))
+        for observation in observations_from_snapshot(snapshot):
+            obj, = decode(encode(observation, version=4)).objects
+            self.assertLess(obj.x_mm, 0)
+            self.assertGreater(obj.y_mm, 0)
+            self.assertEqual(obj.angle, expected_angle)
+            self.assertFalse(obj.distance_valid)
 
     def test_zone_on_ground_is_projected_when_overlapping_gripper_roi(self):
         result = self.process("lower", grip_roi=[350, 360, 440, 450])
-        for row in result["detections"]:
-            self.assertTrue(row["inside_gripper_roi"])
-            self.assertAlmostEqual(row["position_mm"]["ground_range"], 200.)
+        row, = result["detections"]
+        self.assertTrue(row["inside_gripper_roi"])
+        self.assertAlmostEqual(row["position_mm"]["ground_range"], 200.)
 
     def test_expired_and_missing_zones_do_not_keep_old_coordinates(self):
         snapshot = self.snapshot()

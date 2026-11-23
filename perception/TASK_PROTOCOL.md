@@ -73,7 +73,7 @@ danger_reason包含 `multiple_objects/kind_mismatch/hazard/unknown_object/occlud
 
 ### dock：近仓对准
 
-2026-11-16 起，四类安全区的 ROI 中心位置通过普通 `observation.objects` 回传，字段与物块一致：`kind/distance_mm/distance_valid/in_roi/angle`。该坐标用于小车正对安全区时的对准与接近；它不等于下述库口姿态，也不自动使 `dock_valid` 有效。
+四类安全区的 ROI 中心位置通过当前任务的 `observation.objects` 回传，包含 `kind/distance_mm/angle/x_mm/y_mm/distance_valid`。超出常规投影范围和截边框可回传估算坐标，安全区位置有效位依然受标定和新鲜度约束。库口姿态使用下列独立字段。
 
 包含 `zone_kind/dock_valid/dock_lateral_mm/dock_gap_mm/dock_yaw_deg/danger_flag/danger_reason`。zone_kind由本方颜色与物资/伤员类别确定，是任务要求，不是已看见正确区域的证明。
 
