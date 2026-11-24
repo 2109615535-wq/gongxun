@@ -1,6 +1,6 @@
 {
   "model": "../models/best_rknn_model",
-  "expected_model_sha256": "490bf1978ecaad3ee6e403a4c0bc98adc5a1230eed7aac952204b0fe3508ae0a",
+  "expected_model_sha256": "0204c10b017ed21695a183c436a10249aac5f2742ebdfbd6dcbef3c5b7a5f8ef",
   "device": "cpu",
   "confidence": 0.35,
   "excluded_detection_classes": ["gripper", "gripper_closed"],
@@ -13,12 +13,12 @@
   "fps": 30,
   "gripper": {
     "roi_raw_xyxy": [
-      248,
-      124,
-      411,
-      435
+      158,
+      42,
+      486,
+      452
     ],
-    "validated": false,
+    "validated": true,
     "dark_guard": {
       "enabled": true,
       "value_max": 55,
@@ -30,6 +30,7 @@
       "source": "/dev/v4l/by-path/platform-xhci-hcd.11.auto-usb-0:1:1.0-video-index0",
       "kind": "camera",
       "capture_api": "v4l2",
+      "zone_layout_forward": true,
       "calibration_mode": "vehicle_check",
       "mapping": "dual_calibration/upper_ground.json",
       "check_report": "dual_calibration/upper_check_report.json",

@@ -6,9 +6,9 @@
 RV4,source,frame_id,age_ms,status,count[,kind,distance_mm,distance_valid,in_roi,angle,x_mm,y_mm,zone_kind,inside_valid,object_inside,in_safety_zone ...]*CRC16\n
 ```
 
-每个目标 11 个字段。`in_safety_zone` 随当前帧计算。同一画面中，任一安全区 ROI 与物块 ROI 的重叠面积达到物块 ROI 面积的 80% 时为 `1`，其余为 `0`。各安全区独立计算。安全区目标该位为 `0`。STM32 的 `VSP_Object` 和 `VisionObject` 通过 `in_safety_zone` 提供该位，抓取逻辑在新鲜观测中检查它。`object_inside` 继续按连续三帧和任务所需的区域类别核验入仓。
+每个目标 11 个字段。`in_safety_zone` 随当前帧计算。同一画面中，任一安全区 ROI 与物块 ROI 的重叠面积达到物块 ROI 面积的 80% 时为 `1`，其余为 `0`。各安全区独立计算。安全区目标该位为 `0`。支持 RV4 的实车主控通过 `in_safety_zone` 读取该位，抓取逻辑在新鲜观测中检查它。`object_inside` 继续按连续三帧和任务所需的区域类别核验入仓。
 
-RV4 每行含 CRC、不含换行最多 1024 字节。当前 STM32 接收器校验 RV3/RV4 的坐标与入仓字段。安全区中心可从现有的径向距离和方位角获取，主控继续检查 `distance_valid`、`angle_valid` 和帧新鲜度。RV1 至 RV3 的目标布局保持原版本。香橙派使用旧版串口协议时，区内普通、核心和伤员物块发送距离 `-1`、方位 `NA`、`distance_valid=0`、`in_roi=0`，RV3 中 X/Y 也为 `NA`，类别及入仓字段仍可读取。区内物块占据下视夹爪 ROI 时，兼容模式同时屏蔽该帧其他可抓取物块的夹爪 ROI 命中。
+RV4 每行含 CRC、不含换行最多 1024 字节。实车主控的 RV3/RV4 接收器校验坐标与入仓字段。安全区中心可从现有的径向距离和方位角获取，主控继续检查 `distance_valid`、`angle_valid` 和帧新鲜度。RV1 至 RV3 的目标布局保持原版本。香橙派使用旧版串口协议时，区内普通、核心和伤员物块发送距离 `-1`、方位 `NA`、`distance_valid=0`、`in_roi=0`，RV3 中 X/Y 也为 `NA`，类别及入仓字段仍可读取。区内物块占据下视夹爪 ROI 时，兼容模式同时屏蔽该帧其他可抓取物块的夹爪 ROI 命中。
 
 主控固件支持 RV4 后，视觉服务使用 `--controller-protocol vision_simple_v4` 即可发送新增位。
 
@@ -30,7 +30,7 @@ RV3 每行含 CRC、不含换行最多 1024 字节，最多 12 个目标。RV1/R
 
 本文件位于`stm32/`，下文命令均在`perception/`根目录执行。
 
-双向任务/状态/核验使用新增 `rescue_json_v2`，详见 [TASK_PROTOCOL.md](../TASK_PROTOCOL.md)。本目录 C 文件提供 RV1 至 RV4 的主控参考接收器。
+双向任务/状态/核验使用新增 `rescue_json_v2`，详见 [TASK_PROTOCOL.md](../TASK_PROTOCOL.md)。本目录的 C 文件供简易协议联调参考。实车 RV4 接收器和完整工程见 [mcu 分支](https://github.com/2109615535-wq/gongxun/tree/mcu)。
 
 2026-11-04 在简易协议中增加地面方位参数`angle`，新版标识为`RV2`，串口选项为`vision_simple_v2`。视觉发送识别结果，主控接收物体列表；不包含任务下发、状态机回传或动作指令。实际主控工程、板端运行服务和GitHub工作副本均未在本次修改。
 

@@ -158,7 +158,10 @@ function renderCamera(role, camera) {
   for (const item of camera.detections || []) {
     const chip = document.createElement("span");
     chip.className = `detection ${item.name === "hazard" ? "hazard" : ""}`;
-    chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${Math.round(item.confidence * 100)}%${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
+    const score = Number.isFinite(item.confidence) ? `${Math.round(item.confidence * 100)}%` : "布局纠正";
+    chip.textContent = `${names[item.name] || item.name}${item.target_id ? ` #${item.target_id}` : ""} ${score}${item.inside_gripper_roi ? " · 夹爪区" : ""}`;
+    if (item.confidence === null && Number.isFinite(item.model_confidence))
+      chip.title = `原始检测 ${names[item.model_name] || item.model_name} ${Math.round(item.model_confidence * 100)}%`;
     const position = fresh ? getDisplayPosition(item) : null;
     if (position) {
       chip.textContent += ` · X ${mm(position.x_right)} · Y ${mm(position.y_forward)} · 距离 ${mm(position.ground_range)} · 方位 ${Number.isFinite(position.bearing_deg) ? `${position.bearing_deg.toFixed(2)}°` : "—"}`;

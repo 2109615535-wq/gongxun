@@ -14,10 +14,10 @@ from .geometry import GroundCalibration, RadialDistanceCompensation, green_conta
 from .types import TARGET_TYPES
 from .task_protocol import task_key as make_task_key
 from .tracking import TargetTracker
+from .zone_layout import ZONES, resolve_zones
 
 
 MATERIALS = {"normal_material", "core_material", "casualty"}
-ZONES = {"red_material_zone", "red_casualty_zone", "blue_material_zone", "blue_casualty_zone"}
 SAFETY_ZONE_MIN_COVERAGE = 0.8
 SELECTABLE = MATERIALS | ZONES
 KNOWN = set(TARGET_TYPES) | ZONES | {"gripper", "gripper_closed"}
@@ -68,6 +68,9 @@ def load_dual_config(path):
                 raise ValueError(f"Invalid {key}")
     for role in ROLES:
         camera = cfg["cameras"][role]
+        forward_layout = camera.get("zone_layout_forward", False)
+        if type(forward_layout) is not bool or (forward_layout and role != "upper"):
+            raise ValueError("zone_layout_forward is a boolean option for the upper camera")
         if ("rknn_core_mask" in camera and (type(camera["rknn_core_mask"]) is not int or
                                              camera["rknn_core_mask"] not in (0, 1, 2, 3, 4, 7))):
             raise ValueError("Invalid camera RKNN core mask")
@@ -284,20 +287,27 @@ class CameraPerception:
                 result["status"] = "INVALID_DETECTIONS"
                 return result
         detections = [d for d in detections if d.confidence >= self.cfg["confidence"]]
+        camera = self.cfg["cameras"][self.role]
+        forward_layout = (self.role == "upper" and camera.get("zone_layout_forward", False)
+                          and camera.get("kind", "camera") == "camera")
+        resolved, zone_layout = resolve_zones(detections, forward=forward_layout, image_size=(width, height))
+        result.update(zone_layout_forward=forward_layout, zone_layout=zone_layout)
         roi = self.cfg["gripper"]["roi_raw_xyxy"] if self.role == "lower" else None
-        for d in detections:
+        for d, name in resolved:
             inside_grip = bool(roi and roi_coverage(d.box, roi) >= self.cfg["grip_coverage"])
             intersects = bool(roi and roi_coverage(d.box, roi) > 0)
             clipped = touches_border(d.box, self.calibration.size)
             occluded = clipped or any(
                 other is not d and other.name in TARGET_TYPES and box_iou(d.box, other.box) > .12
                 for other in detections)
-            row = {"name": d.name, "confidence": d.confidence, "box": list(d.box),
+            row = {"name": name, "confidence": d.confidence if name == d.name else None, "box": list(d.box),
                    "position_mm": None, "position_quality": "unavailable", "angle": None,
                    "inside_gripper_roi": inside_grip, "in_safety_zone": False, "position_valid": False,
                    "intersects_gripper_roi": intersects, "occluded": occluded,
                    "roi_clipped": bool(intersects and roi_coverage(d.box, roi) < 1 - 1e-6),
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
+            if d.name in ZONES:
+                row.update(model_name=d.name, model_confidence=d.confidence)
             contact = None
             # Zones lie on the ground even when their boxes overlap the gripper ROI.
             if d.name in ZONES:
@@ -347,7 +357,10 @@ class CameraPerception:
                 row["position_valid"] = True
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
-        self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"])
+        ambiguous_boxes = [candidate["box"] for group in zone_layout.values() if group["status"] == "ambiguous"
+                           for candidate in group["candidates"]]
+        self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"],
+                              ambiguous_boxes=ambiguous_boxes)
         result["hazard_blocked"] = any(d.name == "hazard" or d.name not in KNOWN for d in detections)
         expected = task.get("expected")
         allowed = task.get("allowed_kinds")
@@ -398,16 +411,17 @@ class CameraPerception:
                     self.visual_grip.reset()
         return result
 
-    def check_zone_entry(self, rows, *, fresh):
+    def check_zone_entry(self, rows, *, fresh, ambiguous_boxes=()):
         """按当前帧标记抓取保护，按连续三帧完整入区核验投放。"""
         previous, self.entry_counts = self.entry_counts, {}
         zones = [row for row in rows if row["name"] in ZONES]
         delivery_zones = [zone for zone in zones if not touches_border(zone["box"], self.calibration.size)]
+        safety_boxes = [zone["box"] for zone in zones] + list(ambiguous_boxes)
         for row in rows:
             if row["name"] not in TARGET_TYPES:
                 continue
             row["in_safety_zone"] = any(
-                roi_coverage(row["box"], zone["box"]) >= SAFETY_ZONE_MIN_COVERAGE for zone in zones
+                roi_coverage(row["box"], box) >= SAFETY_ZONE_MIN_COVERAGE for box in safety_boxes
             )
             if row["name"] not in MATERIALS:
                 continue
@@ -415,6 +429,9 @@ class CameraPerception:
                                               confirm_count=0, reason="zone_not_visible")
             if not fresh or row["occluded"]:
                 entry["reason"] = "stale" if not fresh else "object_occluded"
+                continue
+            if any(roi_coverage(row["box"], box) > 0 for box in ambiguous_boxes):
+                entry["reason"] = "zone_ambiguous"
                 continue
             suffix = "_casualty_zone" if row["name"] == "casualty" else "_material_zone"
             matching = [zone for zone in delivery_zones if zone["name"].endswith(suffix)]

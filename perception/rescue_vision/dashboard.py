@@ -46,7 +46,8 @@ def annotate_frame(image, result, roi):
         x1, y1, x2, y2 = map(round, row["box"])
         color = (60, 70, 245) if row["name"] == "hazard" else (120, 220, 70)
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(image, f"{row['name']} {row['confidence']:.2f}", (x1, max(16, y1 - 5)),
+        score = "layout" if row["confidence"] is None else f"{row['confidence']:.2f}"
+        cv2.putText(image, f"{row['name']} {score}", (x1, max(16, y1 - 5)),
                     cv2.FONT_HERSHEY_SIMPLEX, .42, color, 1)
     if roi:
         x1, y1, x2, y2 = map(round, roi)
