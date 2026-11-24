@@ -52,13 +52,13 @@ python -m rescue_vision.dashboard --cameras --upper-source 1 --lower-source 2
 sh tools/run_dual_orangepi.sh
 ```
 
-脚本优先使用`VISION_PYTHON`指定的解释器，默认沿用`/home/orangepi/venvs/yolo-rknn-board/bin/python`，不存在时尝试`python3`。模型改为本包的`models/best_rknn_model/`。
+脚本优先使用`VISION_PYTHON`指定的解释器，默认沿用`/home/orangepi/venvs/yolo-rknn-board/bin/python`，不存在时尝试`python3`。板端模型使用本包的 `models/best_rknn_model/`。脚本默认从 `/dev/ttyS6` 发送 RV4，可通过 `VISION_CONTROLLER_PORT` 或命令行参数覆盖串口。
 
 `config/dual_orangepi.json`的`existing_project`仍为`/home/orangepi/yolo_deploy`，用于加载板端已有`rknn_compat.py`和匹配的`runtime-2.3.2/librknnrt.so`。本包`models/rknn_compat.py`为同版备份；当前配置不直接从备份位置加载，因为那里没有复制底层运行库。更换原部署目录时须同步核对辅助脚本、运行库位置和配置，不能只移动一个脚本。
 
 本包不包含NumPy、OpenCV、pyserial、PyYAML、Ultralytics、Torch、RKNNLite安装包或虚拟环境，也不包含`librknnrt.so`。它们沿用目标设备现有环境。`pyproject.toml`只是项目声明，不是上述环境文件；依赖已就绪时可直接从源码运行，也可选择`python -m pip install -e . --no-deps`登记项目。
 
-相机USB路径、分辨率、ROI和实测安装姿态必须与配置一致。当前ROI仍为待重新核验，局部检查/拟合和近场外推不是完整实车运动标定通过。无地面位置时angle为NA，位置无效或年龄达到150ms后，主控angle_valid不能保持有效。
+相机 USB 路径、分辨率、ROI 和安装姿态按设备配置核对。实车配置使用下视夹爪 ROI `[158,42,486,452]`，上视启用安全区布局纠正。无地面位置时 `angle` 为 `NA`，累计帧龄达到 150 ms 时清除位置与角度有效位。
 
 ## 使用范围
 

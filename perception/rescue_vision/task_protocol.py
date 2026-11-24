@@ -5,7 +5,6 @@ import re
 
 from .protocol import crc16
 from .simple_protocol import CLASS_NAMES, observations_from_snapshot
-from .types import TARGET_TYPES
 
 
 MAX_LINE = 4096
@@ -152,10 +151,11 @@ def results_from_snapshot(snapshot):
         rows = [r for r in camera.get("detections", []) if r.get("name") in CLASS_NAMES]
         objects = [dict(target_id=row.get("target_id", 0), kind=obj.kind,
                         distance_mm=obj.distance_mm,
-                        distance_valid=int(obj.distance_valid and (not blocked or row["name"] in TARGET_TYPES)),
+                        distance_valid=int(obj.distance_valid),
                         angle="NA" if obj.angle is None else obj.angle, in_roi=int(obj.in_roi),
                         x_mm=obj.x_mm, y_mm=obj.y_mm, zone_kind=obj.zone_kind,
-                        inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside))
+                        inside_valid=int(obj.inside_valid), object_inside=int(obj.object_inside),
+                        in_safety_zone=int(obj.in_safety_zone))
                    for row, obj in zip(rows, obs.objects)] if usable else []
         messages.append(dict(common, msg_type="observation", source=obs.source, frame_id=obs.frame_id,
                              age_ms=obs.age_ms, status=status, objects=objects,

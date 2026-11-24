@@ -50,10 +50,11 @@
 
 - `target_id`：关联编号。
 - `kind`：green、black、orange、blue及四类红蓝物资/伤员区，模型内部类别不改。
-- `distance_mm/distance_valid`：地面径向距离，无距离为 -1。四类物块的坐标和方位可用且小于 150 ms 时，估算位置也回传有效位 1。任务放行另看 `vision_ready`、`danger_flag` 和阶段核验结果。
+- `distance_mm/distance_valid`：地面径向距离，无距离为 -1。四类物块和四类安全区的坐标及方位可用、帧龄小于 150 ms 时均回传有效位 1，包括估算位置。任务放行另看 `vision_ready`、`danger_flag` 和阶段核验结果。
 - `angle`：地面方位角，单位度，右正左负，无角度为字符串NA。0度是合法正前方角度。
 - `in_roi`：是否满足下视机构ROI覆盖阈值，上视恒为0；不代表核验成功。
 - `x_mm/y_mm`：地面 X 向右、Y 向前，单位 mm；无坐标为 null，位置有效性沿用 `distance_valid`。
+- `in_safety_zone` 为抓取过滤位。同一相机当前帧中，任一红蓝物资区或伤员区 ROI 与物块 ROI 的重叠面积达到物块 ROI 面积的 80% 时为 1，其余为 0。各安全区独立计算。搜索、跟踪和抓取时跳过标记为 1 的物块。
 - `zone_kind/inside_valid/object_inside`：当前物体的安全区归属、视觉入仓判断有效位、连续三帧完整 ROI 入区结果。没有区域为 null；伤员只对应伤员区，普通/核心物资只对应物资区。实际区域颜色仍须与主控本方颜色核对。
 
 不发送angle_valid，由主控根据角度非NA、距离有效和累计年龄计算。
@@ -72,7 +73,7 @@ danger_reason包含 `multiple_objects/kind_mismatch/hazard/unknown_object/occlud
 
 ### dock：近仓对准
 
-2026-11-16 起，四类安全区的 ROI 中心位置通过普通 `observation.objects` 回传，字段与物块一致：`kind/distance_mm/distance_valid/in_roi/angle`。该坐标用于小车正对安全区时的对准与接近；它不等于下述库口姿态，也不自动使 `dock_valid` 有效。
+四类安全区的 ROI 中心位置通过当前任务的 `observation.objects` 回传，包含 `kind/distance_mm/angle/x_mm/y_mm/distance_valid`。范围外及截边框的估算也可随新鲜观测回传有效位 1。任务放行仍由运行状态、危险标记和阶段核验控制。库口姿态使用下列独立字段。
 
 包含 `zone_kind/dock_valid/dock_lateral_mm/dock_gap_mm/dock_yaw_deg/danger_flag/danger_reason`。zone_kind由本方颜色与物资/伤员类别确定，是任务要求，不是已看见正确区域的证明。
 

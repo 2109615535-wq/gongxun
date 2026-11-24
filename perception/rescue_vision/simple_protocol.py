@@ -8,7 +8,7 @@
 实际打开串口并发送数据的代码在 dashboard.py 的 ControllerLink 类中。
 主控对应的接收代码在 stm32/vision_simple.c，完整格式见 SIMPLE_PROTOCOL.md。
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 import re
 
@@ -28,8 +28,11 @@ CLASS_NAMES = {
     "blue_material_zone": "blue_material_zone",
 }
 WIRE_NAMES = tuple(CLASS_NAMES.values())  # 取出字典右边的全部名称，供合法性检查使用。
+PICKUP_KINDS = ("green", "black", "orange")
+SIMPLE_PROTOCOLS = ("vision_simple_v1", "vision_simple_v2", "vision_simple_v3", "vision_simple_v4")
+ITEM_FIELDS = {"RV1": 4, "RV2": 5, "RV3": 10, "RV4": 11}
 MAX_OBJECTS = 12  # 一路相机的一帧最多携带12个物体。
-MAX_LINE = 1024  # RV3每行最多1024字节；RV1/RV2继续限制为512字节。
+MAX_LINE = 1024  # RV3/RV4每行最多1024字节；RV1/RV2继续限制为512字节。
 MAX_AGE_MS = 300  # 识别结果距离采集时刻达到300毫秒后，按过期处理。
 # 依次表示有目标、空场、过期、故障、目标数量超限。
 STATUSES = ("ok", "empty", "stale", "fault", "overflow")
@@ -53,6 +56,7 @@ class SimpleObject:
     zone_kind: str | None = None  # RV3：本物体入仓核验所对应的安全区。
     inside_valid: bool = False  # RV3：完整ROI包含关系的判断是否有效。
     object_inside: bool = False  # RV3：同一物体/安全区连续三帧完全包含。
+    in_safety_zone: bool = False  # RV4：当前帧任一安全区覆盖物块 ROI 面积的 80% 或以上。
 
 
 @dataclass(frozen=True)
@@ -93,6 +97,7 @@ def validate(observation):
         # 再逐个检查物体，距离为-1时不可同时声明距离有效。
         if (obj.kind not in WIRE_NAMES or not _integer(obj.distance_mm, -1, 65535) or
                 type(obj.distance_valid) is not bool or type(obj.in_roi) is not bool or
+                type(obj.in_safety_zone) is not bool or (obj.in_safety_zone and obj.kind in WIRE_NAMES[4:]) or
                 (obj.angle is not None and
                  (type(obj.angle) not in (int, float) or not math.isfinite(obj.angle) or
                   not -180 <= obj.angle <= 180)) or
@@ -106,15 +111,31 @@ def validate(observation):
                 (obj.object_inside and not obj.inside_valid) or
                 (obj.inside_valid and obj.zone_kind is None) or
                 (obj.zone_kind is not None and
-                 (obj.kind not in ("green", "black", "orange") or
+                 (obj.kind not in PICKUP_KINDS or
                   (obj.kind == "orange") != obj.zone_kind.endswith("_casualty_zone")))):
             raise ValueError("Invalid RV3 coordinates or zone entry")
+
+
+def without_legacy_pickup(observation):
+    """保留旧版观测的类别及入仓字段，屏蔽它能用来抓取区内物块的数据。"""
+    protected_in_gripper = any(obj.in_roi and obj.in_safety_zone and obj.kind in PICKUP_KINDS
+                               for obj in observation.objects)
+    objects = []
+    for obj in observation.objects:
+        if obj.kind in PICKUP_KINDS:
+            if obj.in_safety_zone:
+                obj = replace(obj, distance_mm=-1, distance_valid=False, angle=None,
+                              x_mm=None, y_mm=None, in_roi=False)
+            elif protected_in_gripper and obj.in_roi:
+                obj = replace(obj, in_roi=False)
+        objects.append(obj)
+    return replace(observation, objects=tuple(objects))
 
 
 def encode(observation, *, version=2):
     """把 SimpleObservation 转成一条可交给串口 write() 的字节串。"""
     validate(observation)
-    if type(version) is not int or version not in (1, 2, 3):
+    if type(version) is not int or f"RV{version}" not in ITEM_FIELDS:
         raise ValueError("Unsupported simple protocol version")
     # RV2追加angle；RV1保持原来的4字段布局，供旧接收端显式选择。
     fields = [f"RV{version}", observation.source, str(observation.frame_id), str(observation.age_ms),
@@ -124,17 +145,19 @@ def encode(observation, *, version=2):
         fields.extend((obj.kind, str(obj.distance_mm), str(int(obj.distance_valid)), str(int(obj.in_roi))))
         if version >= 2:
             fields.append("NA" if obj.angle is None else f"{obj.angle:.2f}")
-        if version == 3:
+        if version >= 3:
             if obj.distance_valid and (obj.x_mm is None or obj.angle is None):
                 raise ValueError("Valid RV3 position requires X/Y and angle")
             fields.extend(("NA" if obj.x_mm is None else str(obj.x_mm),
                            "NA" if obj.y_mm is None else str(obj.y_mm),
                            obj.zone_kind or "NA", str(int(obj.inside_valid)), str(int(obj.object_inside))))
+        if version >= 4:
+            fields.append(str(int(obj.in_safety_zone)))
     # join用逗号连接字符串，encode("ascii")将文字转换为实际发送的字节。
     body = ",".join(fields).encode("ascii")
     # CRC用于发现传输中的数据损坏，04X表示补足4位的大写十六进制数。
     packet = body + f"*{crc16(body):04X}".encode("ascii")
-    if len(packet) > (MAX_LINE if version == 3 else 512):
+    if len(packet) > (MAX_LINE if version >= 3 else 512):
         raise ValueError("Simple observation line too long")
     return packet + b"\n"  # b表示bytes字节串，\n让接收端知道这一行已经结束。
 
@@ -186,10 +209,11 @@ def decode(packet):
         fields = body.decode("ascii").split(",")
     except UnicodeDecodeError as exc:
         raise ValueError("Expected ASCII") from exc
-    if len(fields) < 6 or fields[0] not in ("RV1", "RV2", "RV3"):
+    if len(fields) < 6 or fields[0] not in ITEM_FIELDS:
         raise ValueError("Invalid simple header")
-    item_fields = {"RV1": 4, "RV2": 5, "RV3": 10}[fields[0]]
-    if fields[0] != "RV3" and len(packet) > 512:
+    item_fields = ITEM_FIELDS[fields[0]]
+    has_zone_entry = item_fields >= 10
+    if not has_zone_entry and len(packet) > 512:
         raise ValueError("Legacy simple line too long")
     count = _number(fields[5], 0, MAX_OBJECTS)
     if len(fields) != 6 + item_fields * count:
@@ -198,16 +222,17 @@ def decode(packet):
     objects = tuple(SimpleObject(fields[i], _number(fields[i+1], -1, 65535),
                                  bool(_number(fields[i+2], 0, 1)), bool(_number(fields[i+3], 0, 1)),
                                  _angle(fields[i+4]) if item_fields >= 5 else None,
-                                 _coordinate(fields[i+5]) if item_fields == 10 else None,
-                                 _coordinate(fields[i+6]) if item_fields == 10 else None,
-                                 (None if fields[i+7] == "NA" else fields[i+7]) if item_fields == 10 else None,
-                                 bool(_number(fields[i+8], 0, 1)) if item_fields == 10 else False,
-                                 bool(_number(fields[i+9], 0, 1)) if item_fields == 10 else False)
+                                 _coordinate(fields[i+5]) if has_zone_entry else None,
+                                 _coordinate(fields[i+6]) if has_zone_entry else None,
+                                 (None if fields[i+7] == "NA" else fields[i+7]) if has_zone_entry else None,
+                                 bool(_number(fields[i+8], 0, 1)) if has_zone_entry else False,
+                                 bool(_number(fields[i+9], 0, 1)) if has_zone_entry else False,
+                                 bool(_number(fields[i+10], 0, 1)) if item_fields == 11 else False)
                     for i in range(6, len(fields), item_fields))
     result = SimpleObservation(fields[1], _number(fields[2], 0, 0xFFFFFFFF),
                                _number(fields[3], -1, 65535), fields[4], objects)
     validate(result)
-    if item_fields == 10 and any(obj.distance_valid and (obj.x_mm is None or obj.angle is None)
+    if has_zone_entry and any(obj.distance_valid and (obj.x_mm is None or obj.angle is None)
                                  for obj in objects):
         raise ValueError("Valid RV3 position requires X/Y and angle")
     return result
@@ -271,7 +296,8 @@ def observations_from_snapshot(snapshot):
                 objects.append(SimpleObject(CLASS_NAMES[name], distance_mm, distance_valid,
                                             source == "lower" and bool(row.get("inside_gripper_roi", False)), angle,
                                             *coordinates, entry.get("zone_kind"), inside_valid,
-                                            bool(inside_valid and entry.get("object_inside", False))))
+                                            bool(inside_valid and entry.get("object_inside", False)),
+                                            bool(row.get("in_safety_zone", False))))
             if len(objects) > MAX_OBJECTS:
                 # 数量超限时整帧标记overflow，避免截断列表时遗漏危险物体。
                 status = "overflow"

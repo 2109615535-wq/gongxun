@@ -22,7 +22,8 @@ from .dashboard_state import DashboardState
 from .dual import CameraPerception, ROLES, load_camera_calibration, load_dual_config
 from .runtime import LatestFrame
 # as给导入函数起别名，encode_simple明确表示这里使用的是简易协议编码器。
-from .simple_protocol import MAX_AGE_MS as SIMPLE_MAX_AGE_MS, encode as encode_simple, observations_from_snapshot
+from .simple_protocol import MAX_AGE_MS as SIMPLE_MAX_AGE_MS
+from .simple_protocol import SIMPLE_PROTOCOLS, encode as encode_simple, observations_from_snapshot, without_legacy_pickup
 from .stm32_status import parse_motor_status
 from .task_protocol import MAX_LINE as TASK_MAX_LINE, decode as decode_task, encode as encode_task
 
@@ -45,7 +46,8 @@ def annotate_frame(image, result, roi):
         x1, y1, x2, y2 = map(round, row["box"])
         color = (60, 70, 245) if row["name"] == "hazard" else (120, 220, 70)
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(image, f"{row['name']} {row['confidence']:.2f}", (x1, max(16, y1 - 5)),
+        score = "layout" if row["confidence"] is None else f"{row['confidence']:.2f}"
+        cv2.putText(image, f"{row['name']} {score}", (x1, max(16, y1 - 5)),
                     cv2.FONT_HERSHEY_SIMPLEX, .42, color, 1)
     if roi:
         x1, y1, x2, y2 = map(round, roi)
@@ -336,7 +338,7 @@ class ControllerLink:
     初学者先看run()如何连接串口，再看send_simple()如何定时发送。
     """
     def __init__(self, state, port, protocol):
-        if protocol not in ("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", "vision_simple_v1", "vision_simple_v2", "vision_simple_v3"):
+        if protocol not in ("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", *SIMPLE_PROTOCOLS):
             raise ValueError("Unsupported controller protocol")
         self.state, self.port, self.protocol = state, port, protocol
         # Event作为停止开关，thread让串口收发与相机、网页同时运行。
@@ -355,7 +357,7 @@ class ControllerLink:
                     # lock保护多个线程共用的状态，防止同时修改时互相干扰。
                     with self.state.lock:
                         self.state.link.update(status="CONNECTED", protocol=self.protocol, error=None)
-                    if self.protocol in ("vision_simple_v1", "vision_simple_v2", "vision_simple_v3"):
+                    if self.protocol in SIMPLE_PROTOCOLS:
                         self.send_simple(port)
                     else:
                         self.exchange_legacy(port)
@@ -368,6 +370,7 @@ class ControllerLink:
 
     def send_simple(self, port):
         """循环执行三步，取得双摄结果、逐路发送、等待0.1秒。"""
+        version = int(self.protocol[-1])
         while not self.stop.is_set():
             # 1. 从共享状态取出上视和下视各一条观测。
             snapshot_started = time.monotonic()
@@ -386,7 +389,9 @@ class ControllerLink:
                         objects = tuple(replace(obj, distance_valid=False, inside_valid=False, object_inside=False)
                                         for obj in objects)
                     observation = replace(observation, age_ms=age, status=status, objects=objects)
-                data = encode_simple(observation, version=int(self.protocol[-1]))
+                if version < 4 and observation.objects:
+                    observation = without_legacy_pickup(observation)
+                data = encode_simple(observation, version=version)
                 if port.write(data) != len(data):
                     raise OSError("Incomplete observation write")
 
@@ -448,7 +453,7 @@ class ControllerLink:
                 if not isinstance(value, dict) or value.get("msg_type") is not None:
                     raise ValueError("Task messages require rescue_json_v2 CRC framing")
                 self.state.update_controller(value)
-            elif self.protocol in ("vision_simple_v1", "vision_simple_v2", "vision_simple_v3"):
+            elif self.protocol in SIMPLE_PROTOCOLS:
                 # 本版约定视觉向主控发送观测，收到任务输入时按未支持的消息处理。
                 raise ValueError("Simple protocol is observation-only")
             else:
@@ -648,7 +653,7 @@ def main(argv=None):
     parser.add_argument("--record", type=Path, help="新建JSONL检测日志，拒绝覆盖")
     parser.add_argument("--controller-port", help="显式启用串口接入")
     # rescue_json_v2为双向任务；vision_simple_v2为带angle的旧观测；默认只收遥测。
-    parser.add_argument("--controller-protocol", choices=("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", "vision_simple_v1", "vision_simple_v2", "vision_simple_v3"), default="motor_debug_ascii")
+    parser.add_argument("--controller-protocol", choices=("motor_debug_ascii", "rescue_json_v1", "rescue_json_v2", *SIMPLE_PROTOCOLS), default="motor_debug_ascii")
     parser.add_argument("--duration", type=float, help="限时运行，用于检查")
     args = parser.parse_args(argv)
     if args.duration is not None and not 0 < args.duration < 86400:

@@ -5,7 +5,7 @@
   "existing_project": "/home/orangepi/yolo_deploy",
   "model": "../models/best_rknn_model",
   "manifest": "../models/best_rknn_model/metadata.yaml",
-  "expected_model_sha256": "490bf1978ecaad3ee6e403a4c0bc98adc5a1230eed7aac952204b0fe3508ae0a",
+  "expected_model_sha256": "0204c10b017ed21695a183c436a10249aac5f2742ebdfbd6dcbef3c5b7a5f8ef",
   "expected_runtime_helper_sha256": "a936e4c88cadadace5e708886af4ccc0d9e5a0e79a09c17cf57d569d0dd4e861",
   "calibration": "calibration.json",
   "camera": "/dev/v4l/by-id/usb-HJ_USB_2.0_Camera_HJ_USB_2.0_Camera_SN0001-video-index0",

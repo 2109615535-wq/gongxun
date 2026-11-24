@@ -14,10 +14,11 @@ from .geometry import GroundCalibration, RadialDistanceCompensation, green_conta
 from .types import TARGET_TYPES
 from .task_protocol import task_key as make_task_key
 from .tracking import TargetTracker
+from .zone_layout import ZONES, resolve_zones
 
 
 MATERIALS = {"normal_material", "core_material", "casualty"}
-ZONES = {"red_material_zone", "red_casualty_zone", "blue_material_zone", "blue_casualty_zone"}
+SAFETY_ZONE_MIN_COVERAGE = 0.8
 SELECTABLE = MATERIALS | ZONES
 KNOWN = set(TARGET_TYPES) | ZONES | {"gripper", "gripper_closed"}
 ROLES = ("upper", "lower")
@@ -67,6 +68,9 @@ def load_dual_config(path):
                 raise ValueError(f"Invalid {key}")
     for role in ROLES:
         camera = cfg["cameras"][role]
+        forward_layout = camera.get("zone_layout_forward", False)
+        if type(forward_layout) is not bool or (forward_layout and role != "upper"):
+            raise ValueError("zone_layout_forward is a boolean option for the upper camera")
         if ("rknn_core_mask" in camera and (type(camera["rknn_core_mask"]) is not int or
                                              camera["rknn_core_mask"] not in (0, 1, 2, 3, 4, 7))):
             raise ValueError("Invalid camera RKNN core mask")
@@ -142,6 +146,12 @@ def roi_coverage(box, roi):
     width = max(0, min(x2, roi[2]) - max(x1, roi[0]))
     height = max(0, min(y2, roi[3]) - max(y1, roi[1]))
     return width * height / ((x2 - x1) * (y2 - y1))
+
+
+def roi_contains(box, roi):
+    x1, y1, x2, y2 = box
+    left, top, right, bottom = roi
+    return left <= x1 and top <= y1 and x2 <= right and y2 <= bottom
 
 
 def unclassified_dark_regions(image, rows, roi, guard):
@@ -277,27 +287,35 @@ class CameraPerception:
                 result["status"] = "INVALID_DETECTIONS"
                 return result
         detections = [d for d in detections if d.confidence >= self.cfg["confidence"]]
+        camera = self.cfg["cameras"][self.role]
+        forward_layout = (self.role == "upper" and camera.get("zone_layout_forward", False)
+                          and camera.get("kind", "camera") == "camera")
+        resolved, zone_layout = resolve_zones(detections, forward=forward_layout, image_size=(width, height))
+        result.update(zone_layout_forward=forward_layout, zone_layout=zone_layout)
         roi = self.cfg["gripper"]["roi_raw_xyxy"] if self.role == "lower" else None
-        for d in detections:
+        for d, name in resolved:
             inside_grip = bool(roi and roi_coverage(d.box, roi) >= self.cfg["grip_coverage"])
             intersects = bool(roi and roi_coverage(d.box, roi) > 0)
-            occluded = touches_border(d.box, self.calibration.size) or any(
+            clipped = touches_border(d.box, self.calibration.size)
+            occluded = clipped or any(
                 other is not d and other.name in TARGET_TYPES and box_iou(d.box, other.box) > .12
                 for other in detections)
-            row = {"name": d.name, "confidence": d.confidence, "box": list(d.box),
+            row = {"name": name, "confidence": d.confidence if name == d.name else None, "box": list(d.box),
                    "position_mm": None, "position_quality": "unavailable", "angle": None,
-                   "inside_gripper_roi": inside_grip, "position_valid": False,
+                   "inside_gripper_roi": inside_grip, "in_safety_zone": False, "position_valid": False,
                    "intersects_gripper_roi": intersects, "occluded": occluded,
                    "roi_clipped": bool(intersects and roi_coverage(d.box, roi) < 1 - 1e-6),
                    "center_offset_normalized": ((d.box[0] + d.box[2]) / width - 1)}
+            if d.name in ZONES:
+                row.update(model_name=d.name, model_confidence=d.confidence)
             contact = None
             # Zones lie on the ground even when their boxes overlap the gripper ROI.
-            # Use the centre only for a complete zone ROI; materials keep their contact point.
-            if d.name in ZONES and not touches_border(d.box, self.calibration.size):
+            if d.name in ZONES:
                 contact = ((d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2)
-                row["zone_center_px"] = contact
+                if not clipped:
+                    row["zone_center_px"] = contact
             # An object held above the ground must never be projected through ground H.
-            elif d.name in TARGET_TYPES and not inside_grip and not touches_border(d.box, self.calibration.size):
+            elif d.name in TARGET_TYPES and not inside_grip and not clipped:
                 overlapping = any(other is not d and other.name in TARGET_TYPES and
                                   box_iou(d.box, other.box) > .12 for other in detections)
                 if not overlapping:
@@ -315,10 +333,11 @@ class CameraPerception:
                     verified = self.calibration.valid and not near
                     if d.name in ZONES:
                         row["position_quality"] = "near_estimate" if near else "zone_roi_center"
-                        row["position_valid"] = verified
+                        if clipped:
+                            row["position_quality"] = "position"
                     else:
                         row["position_quality"] = "validated" if verified else "position"
-            if d.name in TARGET_TYPES and row["position_mm"] is None and not inside_grip:
+            if row["position_mm"] is None and (d.name in ZONES or (d.name in TARGET_TYPES and not inside_grip)):
                 if d.name == "normal_material" and contact is None:
                     contact = green_contact(image, d.box, LOWER, UPPER)
                     if contact is None:
@@ -335,11 +354,13 @@ class CameraPerception:
                 position.update(x_right=x, y_forward=y, ground_range=math.hypot(x, y),
                                 bearing_deg=math.degrees(math.atan2(x, y)))
                 row["angle"] = position["bearing_deg"]
-                if d.name in TARGET_TYPES:
-                    row["position_valid"] = True
+                row["position_valid"] = True
             result["detections"].append(row)
         self.tracker.update(result["detections"], locked_target_id=task.get("locked_target_id", 0))
-        self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"])
+        ambiguous_boxes = [candidate["box"] for group in zone_layout.values() if group["status"] == "ambiguous"
+                           for candidate in group["candidates"]]
+        self.check_zone_entry(result["detections"], fresh=age < self.cfg["control_max_age_ms"],
+                              ambiguous_boxes=ambiguous_boxes)
         result["hazard_blocked"] = any(d.name == "hazard" or d.name not in KNOWN for d in detections)
         expected = task.get("expected")
         allowed = task.get("allowed_kinds")
@@ -349,7 +370,7 @@ class CameraPerception:
         candidates = [row for row in result["detections"] if row["name"] in candidate_names
                       and (allowed is None or row["name"] in {allowed_names[k] for k in allowed})
                       and (not locked or row["target_id"] == locked)
-                      and not row["inside_gripper_roi"]]
+                      and not row["inside_gripper_roi"] and not row["in_safety_zone"]]
         if candidates:
             if self.selection.box is None:
                 selected = min(candidates, key=lambda r: abs((r["box"][0] + r["box"][2]) / 2 - width / 2))
@@ -364,6 +385,7 @@ class CameraPerception:
             result["selected"] = selected
             result["motion_valid"] = (selected["confirmed"] and selected["position_valid"]
                                       and selected["position_quality"] in ("validated", "zone_roi_center")
+                                      and (selected["name"] not in ZONES or self.calibration.valid)
                                       and age <= self.cfg["control_max_age_ms"]
                                       and not result["hazard_blocked"] and task.get("source") == "controller")
             if task.get("contract") == "rescue_json_v2":
@@ -389,12 +411,18 @@ class CameraPerception:
                     self.visual_grip.reset()
         return result
 
-    def check_zone_entry(self, rows, *, fresh):
-        """完整物体 ROI 位于对应安全区 ROI 内，连续三帧才报告视觉入仓。"""
+    def check_zone_entry(self, rows, *, fresh, ambiguous_boxes=()):
+        """按当前帧标记抓取保护，按连续三帧完整入区核验投放。"""
         previous, self.entry_counts = self.entry_counts, {}
-        zones = [row for row in rows if row["name"] in ZONES and
-                 not touches_border(row["box"], self.calibration.size)]
+        zones = [row for row in rows if row["name"] in ZONES]
+        delivery_zones = [zone for zone in zones if not touches_border(zone["box"], self.calibration.size)]
+        safety_boxes = [zone["box"] for zone in zones] + list(ambiguous_boxes)
         for row in rows:
+            if row["name"] not in TARGET_TYPES:
+                continue
+            row["in_safety_zone"] = any(
+                roi_coverage(row["box"], box) >= SAFETY_ZONE_MIN_COVERAGE for box in safety_boxes
+            )
             if row["name"] not in MATERIALS:
                 continue
             entry = row["zone_entry"] = dict(zone_kind=None, result_valid=False, object_inside=False,
@@ -402,11 +430,12 @@ class CameraPerception:
             if not fresh or row["occluded"]:
                 entry["reason"] = "stale" if not fresh else "object_occluded"
                 continue
+            if any(roi_coverage(row["box"], box) > 0 for box in ambiguous_boxes):
+                entry["reason"] = "zone_ambiguous"
+                continue
             suffix = "_casualty_zone" if row["name"] == "casualty" else "_material_zone"
-            matching = [zone for zone in zones if zone["name"].endswith(suffix)]
-            x1, y1, x2, y2 = row["box"]
-            contained = [zone for zone in matching if zone["box"][0] <= x1 and
-                         zone["box"][1] <= y1 and x2 <= zone["box"][2] and y2 <= zone["box"][3]]
+            matching = [zone for zone in delivery_zones if zone["name"].endswith(suffix)]
+            contained = [zone for zone in matching if roi_contains(row["box"], zone["box"])]
             if len(contained) > 1:
                 entry["reason"] = "zone_ambiguous"
             elif len(contained) == 1:
